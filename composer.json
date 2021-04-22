@@ -1,0 +1,30 @@
+{
+	"name": "jcbowen/yiiswoole",
+	"description": "Yii websocket server component",
+	"keywords": [
+		"yii",
+		"yii2",
+		"swoole",
+		"websocket",
+		"php",
+		"jcbowen"
+	],
+	"type": "library",
+	"license": "MIT",
+	"authors": [
+		{
+			"name": "Bowen",
+			"email": "bowen@jiuchet.com"
+		}
+	],
+	"minimum-stability": "dev",
+	"require": {
+		"php": ">=7.2",
+		"yiisoft/yii2": "*"
+	},
+	"autoload": {
+		"psr-4": {
+			"jcbowen\\swoole\\": "./src"
+		}
+	}
+}
