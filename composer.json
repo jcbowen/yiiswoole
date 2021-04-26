@@ -24,7 +24,7 @@
 	},
 	"autoload": {
 		"psr-4": {
-			"jcbowen\\yiiswoole\\websocket\\": "./src/websocket"
+			"jcbowen\\yiiswoole\\": "./src"
 		}
 	}
 }
