@@ -77,7 +77,7 @@ class WebSocketServer
     /**
      * @var WsServer
      */
-    public $_server;
+    public $_ws;
 
     /**
      * WebSocketServer constructor.
@@ -110,22 +110,22 @@ class WebSocketServer
     public function run(): WsServer
     {
         if ($this->_type == 'ws') {
-            $this->_server = new WsServer($this->_host, $this->_port, $this->_mode, $this->_socketType);
+            $this->_ws = new WsServer($this->_host, $this->_port, $this->_mode, $this->_socketType);
         } else {
             // wss
-            $this->_server = new WsServer($this->_host, $this->_port, $this->_mode, $this->_socketType | SWOOLE_SSL);
+            $this->_ws = new WsServer($this->_host, $this->_port, $this->_mode, $this->_socketType | SWOOLE_SSL);
         }
-        $this->_server->set($this->_config);
+        $this->_ws->set($this->_config);
 
-        $this->_server->on('Open', [$this, 'onOpen']);
+        $this->_ws->on('Open', [$this, 'onOpen']);
 
-        $this->_server->on('Message', [$this, 'onMessage']);
+        $this->_ws->on('Message', [$this, 'onMessage']);
 
-        $this->_server->on('Close', [$this, 'onClose']);
+        $this->_ws->on('Close', [$this, 'onClose']);
 
-        $this->_server->start();
+        $this->_ws->start();
 
-        return $this->_server;
+        return $this->_ws;
     }
 
     /**

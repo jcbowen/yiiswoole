@@ -9,4 +9,3 @@ composer.lock
 #
 .DS_Store
 .idea
-/src/websocket1/

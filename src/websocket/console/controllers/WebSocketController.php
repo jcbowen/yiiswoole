@@ -125,8 +125,8 @@ class WebSocketController extends Controller
      */
     public function actionStop()
     {
-        $workerId = $this->server->getWorkerId();
-        $this->server->stop($workerId);
+        $workerId = $this->server->_ws->getWorkerId();
+        $this->server->_ws->stop($workerId);
         $this->stdout("服务已经停止, 停止监听 {$this->host}:{$this->port}" . PHP_EOL);
     }
 
@@ -137,6 +137,6 @@ class WebSocketController extends Controller
      */
     public function actionRestart()
     {
-        $this->server->reload();
+        $this->server->_ws->reload();
     }
 }
