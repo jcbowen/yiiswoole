@@ -207,8 +207,9 @@ class WebSocketServer
      */
     public function onMessage($server, $frame)
     {
-        global $_GPC;
-        $_GPC = ArrayHelper::merge($_GPC, (array)json_decode($frame->data, true));
+        global $_GPC, $_B;
+        $_B['WebSocket'] = $server;
+        $_GPC = ArrayHelper::merge($_GPC, (array)json_decode($frame->data, true), ['_frame' => $frame]);
         $route = $_GPC['route'];
 
         if (empty($route)) $route = '/';

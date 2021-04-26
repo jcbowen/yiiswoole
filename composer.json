@@ -21,7 +21,8 @@
 	"require": {
 		"php": ">=7.0",
 		"yiisoft/yii2": "*",
-		"ext-posix": "*"
+		"ext-posix": "*",
+		"ext-json": "*"
 	},
 	"autoload": {
 		"psr-4": {
