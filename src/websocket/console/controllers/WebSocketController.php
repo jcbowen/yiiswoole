@@ -10,6 +10,7 @@
 namespace jcbowen\yiiswoole\websocket\console\controllers;
 
 use yii\console\Controller;
+use yii\helpers\ArrayHelper;
 
 class WebSocketController extends Controller
 {
@@ -77,24 +78,34 @@ class WebSocketController extends Controller
     public $type = 'ws';
 
     /**
-     * swoole 配置
+     * 默认swoole配置
      *
      * @var array
      */
-    public $config = [
+    private $config_defult = [
         'daemonize'                => false, // 守护进程执行
-        'task_worker_num'          => 4,//task进程的数量
         'ssl_cert_file'            => '',
         'ssl_key_file'             => '',
         'pid_file'                 => '',
+        'log_file'                 => '',
+        'log_level'                => SWOOLE_LOG_DEBUG,
         'buffer_output_size'       => 2 * 1024 * 1024, //配置发送输出缓存区内存尺寸
         'heartbeat_check_interval' => 60,// 心跳检测秒数
         'heartbeat_idle_time'      => 600,// 检查最近一次发送数据的时间和当前时间的差，大于则强行关闭
     ];
 
+    /**
+     * swoole配置信息
+     * 接收配置文件传过来的配置信息
+     *
+     * @var array
+     */
+    public $config = [];
+
     public function init()
     {
         parent::init();
+        $this->config = ArrayHelper::merge($this->config_defult, $this->config);
         if (!$this->server) $this->server = new $this->serverClass($this->host, $this->port, $this->mode, $this->socketType, $this->type, $this->config);
     }
 
