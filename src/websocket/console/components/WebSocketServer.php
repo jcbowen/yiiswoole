@@ -11,6 +11,7 @@ namespace jcbowen\yiiswoole\websocket\console\components;
 
 
 use Swoole\WebSocket\Server as WsServer;
+use Swoole\Process;
 use Yii;
 use yii\console\Exception;
 use yii\helpers\ArrayHelper;
@@ -71,8 +72,20 @@ class WebSocketServer
      *
      * @var array
      */
-    protected $_config = [];
-
+    protected $_config = [
+        'daemonize'                => false, // 守护进程执行
+        'ssl_cert_file'            => '',
+        'ssl_key_file'             => '',
+        'pid_file'                 => __DIR__ . '/../runtime/log/websocket.pid',
+        'log_file'                 => __DIR__ . '/../runtime/log/websocket.log',
+        'log_level'                => SWOOLE_LOG_DEBUG,
+        'buffer_output_size'       => 2 * 1024 * 1024, //配置发送输出缓存区内存尺寸
+        'heartbeat_check_interval' => 60,// 心跳检测秒数
+        'heartbeat_idle_time'      => 600,// 检查最近一次发送数据的时间和当前时间的差，大于则强行关闭
+        'worker_num'               => 1,
+        'max_wait_time'            => 60,
+        'reload_async'             => true,
+    ];
 
     /**
      * @var WsServer
@@ -95,17 +108,16 @@ class WebSocketServer
         $this->_mode = $mode;
         $this->_socketType = $socketType;
         $this->_type = $type;
-        $this->_config = $config;
+        $this->_config = ArrayHelper::merge($this->_config, $config);
     }
 
     /**
+     * 运行websocket服务
      *
+     * @return WsServer
      * @author Bowen
      * @email bowen@jiuchet.com
      * @lastTime 2021/4/25 1:13 下午
-     *
-     *
-     * @return WsServer
      */
     public function run(): WsServer
     {
@@ -117,6 +129,10 @@ class WebSocketServer
         }
         $this->_ws->set($this->_config);
 
+        $this->_ws->on('WorkerStart', [$this, 'onWorkerStart']);
+
+        $this->_ws->on('WorkerStop', [$this, 'onWorkerStop']);
+
         $this->_ws->on('Open', [$this, 'onOpen']);
 
         $this->_ws->on('Message', [$this, 'onMessage']);
@@ -126,6 +142,34 @@ class WebSocketServer
         $this->_ws->start();
 
         return $this->_ws;
+    }
+
+    /**
+     * 结束服务
+     *
+     * @return false
+     * @author Bowen
+     * @email bowen@jiuchet.com
+     * @lastTime 2021/4/26 1:49 下午
+     */
+    public function stop(): bool
+    {
+        if ($pid = $this->getPid()) {
+            return Process::kill($pid, SIGTERM);
+        } else {
+            echo '进程未启动，无需停止' . PHP_EOL;
+            return false;
+        }
+    }
+
+    public function onWorkerStart($server, $workerId)
+    {
+        echo("服务已经停止, 停止监听 {$this->host}:{$this->port}" . PHP_EOL);
+    }
+
+    public function onWorkerStop($server, $workerId)
+    {
+        echo '进程已经停止' . PHP_EOL;
     }
 
     /**
@@ -183,5 +227,28 @@ class WebSocketServer
     public function onClose($server, $fd)
     {
         echo "client-{$fd} is closed" . PHP_EOL;
+    }
+
+    /**
+     * 获取pid
+     *
+     * @return false|string
+     * @author Bowen
+     * @email bowen@jiuchet.com
+     * @lastTime 2021/4/26 1:52 下午
+     *
+     */
+    public function getPid()
+    {
+        $pid_file = $this->_config['pid_file'];
+        if (file_exists($pid_file)) {
+            $pid = file_get_contents($pid_file);
+            if (posix_getpgid($pid)) {
+                return $pid;
+            } else {
+                unlink($pid_file);
+            }
+        }
+        return false;
     }
 }

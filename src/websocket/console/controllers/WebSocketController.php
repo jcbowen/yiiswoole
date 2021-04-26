@@ -10,7 +10,6 @@
 namespace jcbowen\yiiswoole\websocket\console\controllers;
 
 use yii\console\Controller;
-use yii\helpers\ArrayHelper;
 
 class WebSocketController extends Controller
 {
@@ -49,7 +48,7 @@ class WebSocketController extends Controller
      * SWOOLE_BASE 基本模式
      * @var int
      */
-    public $mode = SWOOLE_BASE;
+    public $mode = SWOOLE_PROCESS;
 
     /**
      *
@@ -78,23 +77,6 @@ class WebSocketController extends Controller
     public $type = 'ws';
 
     /**
-     * 默认swoole配置
-     *
-     * @var array
-     */
-    private $config_defult = [
-        'daemonize'                => false, // 守护进程执行
-        'ssl_cert_file'            => '',
-        'ssl_key_file'             => '',
-        'pid_file'                 => '',
-        'log_file'                 => '',
-        'log_level'                => SWOOLE_LOG_DEBUG,
-        'buffer_output_size'       => 2 * 1024 * 1024, //配置发送输出缓存区内存尺寸
-        'heartbeat_check_interval' => 60,// 心跳检测秒数
-        'heartbeat_idle_time'      => 600,// 检查最近一次发送数据的时间和当前时间的差，大于则强行关闭
-    ];
-
-    /**
      * swoole配置信息
      * 接收配置文件传过来的配置信息
      *
@@ -105,19 +87,22 @@ class WebSocketController extends Controller
     public function init()
     {
         parent::init();
-        $this->config = ArrayHelper::merge($this->config_defult, $this->config);
         if (!$this->server) $this->server = new $this->serverClass($this->host, $this->port, $this->mode, $this->socketType, $this->type, $this->config);
     }
 
     /**
      * 启动服务
      *
-     * @throws \yii\base\Exception
+     * @return mixed
+     * @author Bowen
+     * @email bowen@jiuchet.com
+     * @lastTime 2021/4/26 1:44 下午
+     *
+     *
      */
     public function actionStart()
     {
-        $this->server->run();
-        $this->stdout("服务开始运行： {$this->host}:{$this->port}" . PHP_EOL);
+        return $this->server->run();
     }
 
     /**
@@ -125,9 +110,10 @@ class WebSocketController extends Controller
      */
     public function actionStop()
     {
-        $workerId = $this->server->_ws->getWorkerId();
-        $this->server->_ws->stop($workerId);
-        $this->stdout("服务已经停止, 停止监听 {$this->host}:{$this->port}" . PHP_EOL);
+        if ($this->server->stop()) {
+            return $this->stdout("服务已经停止, 停止监听 {$this->host}:{$this->port}" . PHP_EOL);
+        }
+        return false;
     }
 
     /**
@@ -137,6 +123,26 @@ class WebSocketController extends Controller
      */
     public function actionRestart()
     {
-        $this->server->_ws->reload();
+        $this->stdout('开始重启进程' . PHP_EOL);
+        $this->actionStop();
+        $time = 0;
+        while (posix_getpgid($pid = $this->server->getPid()) && !empty($pid) && $time <= 119) {
+            usleep(500000);// 每0.5秒执行一次
+            $this->stdout($pid . PHP_EOL);
+            $time++;
+        }
+        // 超过1分钟就是停止失败
+        if ($time > 119) {
+            $this->stdout("进程停止超时..." . PHP_EOL);
+            die();
+        }
+
+        if ($this->server->getPid() === false) {
+            $this->stdout("进程停止成功，开始重启" . PHP_EOL);
+        } else {
+            $this->stdout("进程停止错误, 请手动停止" . PHP_EOL);
+        }
+
+        $this->server->run();
     }
 }
