@@ -55,9 +55,9 @@ composer require "jcbowen/yiiswoole"
 ### 使用
 ```
 # 启动 
-php ./yii websocket/start
+php yii websocket/start
 # 停止 
-php ./yii websocket/stop
+php yii websocket/stop
 # 重启 
-php ./yii websocket/restart
+php yii websocket/restart
 ```
