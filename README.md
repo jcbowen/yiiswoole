@@ -115,9 +115,9 @@ class SiteController extends Controller
     {
         global $_B, $_GPC;
 
-        $ws = $_B['WebSocket'];
-        $frame = $_GPC['WS_frame'];
-        return $ws->push($frame->fd, 'U Got Me');
+        $ws = $_B['WebSocket']['server'];
+        $frame = $_B['WebSocket']['frame'];
+        return $ws->push($frame->fd, $_GPC['message']);
     }
 }
 ```
