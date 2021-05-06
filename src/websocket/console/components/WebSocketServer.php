@@ -9,7 +9,6 @@
 
 namespace jcbowen\yiiswoole\websocket\console\components;
 
-
 use Swoole\WebSocket\Server as WsServer;
 use Swoole\Process;
 use Yii;
@@ -220,7 +219,7 @@ class WebSocketServer
         unset($_GPC['route']);
 
         try {
-            return Yii::$app->runAction($route, $_GPC);
+            return Yii::$app->runAction($route);
         } catch (Exception $e) {
             Yii::info($e);
             echo($e->getMessage());
