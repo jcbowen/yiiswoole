@@ -73,18 +73,18 @@ class WebSocketServer
      * @var array
      */
     protected $_config = [
-        'daemonize' => false, // 守护进程执行
-        'ssl_cert_file' => '',
-        'ssl_key_file' => '',
-        'pid_file' => __DIR__ . '/../runtime/log/websocket.pid',
-        'log_file' => __DIR__ . '/../runtime/log/websocket.log',
-        'log_level' => SWOOLE_LOG_DEBUG,
-        'buffer_output_size' => 2 * 1024 * 1024, //配置发送输出缓存区内存尺寸
+        'daemonize'                => false, // 守护进程执行
+        'ssl_cert_file'            => '',
+        'ssl_key_file'             => '',
+        'pid_file'                 => __DIR__ . '/../runtime/log/websocket.pid',
+        'log_file'                 => __DIR__ . '/../runtime/log/websocket.log',
+        'log_level'                => SWOOLE_LOG_DEBUG,
+        'buffer_output_size'       => 2 * 1024 * 1024, //配置发送输出缓存区内存尺寸
         'heartbeat_check_interval' => 60,// 心跳检测秒数
-        'heartbeat_idle_time' => 600,// 检查最近一次发送数据的时间和当前时间的差，大于则强行关闭
-        'worker_num' => 1,
-        'max_wait_time' => 60,
-        'reload_async' => true,
+        'heartbeat_idle_time'      => 600,// 检查最近一次发送数据的时间和当前时间的差，大于则强行关闭
+        'worker_num'               => 1,
+        'max_wait_time'            => 60,
+        'reload_async'             => true,
     ];
 
     /**
@@ -188,7 +188,7 @@ class WebSocketServer
         echo 'server: handshake success!' . PHP_EOL;
         $server->push($request->fd, stripslashes(json_encode([
             'code' => 200,
-            'msg' => 'handshake success'
+            'msg'  => 'handshake success'
         ], JSON_UNESCAPED_UNICODE)));
     }
 
@@ -214,7 +214,7 @@ class WebSocketServer
 
         if (empty($route)) return $server->push($frame->fd, stripslashes(json_encode([
             'code' => 211,
-            'msg' => '路由错误'
+            'msg'  => '路由错误'
         ], JSON_UNESCAPED_UNICODE)));
 
         unset($_GPC['route']);
