@@ -207,16 +207,16 @@ class WebSocketServer
     public function onMessage($server, $frame)
     {
         global $_GPC, $_B;
-        $_B['WebSocket'] = $server;
-        $_GPC = ArrayHelper::merge($_GPC, (array)@json_decode($frame->data, true), ['fd' => $frame->fd]);
+        $_B['WebSocket'] = ['server' => $server, 'frame' => $frame];
+        $_GPC = ArrayHelper::merge($_GPC, (array)@json_decode($frame->data, true));
+
         $route = $_GPC['route'];
+        unset($_GPC['route']);
 
         if (empty($route)) return $server->push($frame->fd, stripslashes(json_encode([
             'code' => 211,
             'msg'  => '路由错误'
         ], JSON_UNESCAPED_UNICODE)));
-
-        unset($_GPC['route']);
 
         try {
             return Yii::$app->runAction($route);
