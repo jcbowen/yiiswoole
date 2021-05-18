@@ -92,6 +92,13 @@ class WebSocketServer
     public $_ws;
 
     /**
+     * 局部缓存变量
+     *
+     * @var array
+     */
+    private $_cache = [];
+
+    /**
      * WebSocketServer constructor.
      * @param $host
      * @param $port
@@ -184,10 +191,34 @@ class WebSocketServer
      */
     public function onOpen($server, $request)
     {
+        global $_B, $_GPC;
         echo 'server: handshake success!' . PHP_EOL;
+
+        $_B['WebSocket'] = ['server' => $server, 'frame' => $request];
+
+        $_GPC = ArrayHelper::merge((array)$request->get, (array)$request->post);
+        $route = $request->server['path_info'];
+
+        $this->_cache[$request->fd] = [
+            'route' => $route,
+            'a'     => $_GPC['a']
+        ];
+
+        // 有route的情况才执行
+        if (!empty($route) && $route !== '/') {
+            try {
+                return Yii::$app->runAction($route);
+            } catch (Exception $e) {
+                Yii::info($e);
+                echo($e->getMessage());
+                return false;
+            }
+        }
+
         $server->push($request->fd, stripslashes(json_encode([
-            'code' => 200,
-            'msg'  => 'handshake success'
+            'code'  => 200,
+            'msg'   => 'handshake success',
+            'route' => $route
         ], JSON_UNESCAPED_UNICODE)));
     }
 
@@ -210,8 +241,8 @@ class WebSocketServer
         $_B['WebSocket'] = ['server' => $server, 'frame' => $frame];
         $_GPC = ArrayHelper::merge($_GPC, (array)@json_decode($frame->data, true));
 
-        $route = $_GPC['route'];
-        unset($_GPC['route']);
+        $route = $this->_cache[$frame->fd]['route'];
+        if (!empty($_GPC['route'])) $route = $_GPC['route'];
 
         if (empty($route)) return $server->push($frame->fd, stripslashes(json_encode([
             'code' => 211,
@@ -229,6 +260,10 @@ class WebSocketServer
 
     public function onClose($server, $fd)
     {
+        $route = $this->_cache[$fd]['route'];
+        $a = $this->_cache[$fd]['a'];
+        echo $route . PHP_EOL;
+        echo $a . PHP_EOL;
         echo "client-{$fd} is closed" . PHP_EOL;
     }
 
