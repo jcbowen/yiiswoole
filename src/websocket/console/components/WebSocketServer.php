@@ -2,7 +2,7 @@
 /**
  *
  * @author Bowen
- * @email 3308725087@qq.com
+ * @email bowen@jiuchet.com
  * @lastTime 2021/4/25 12:53 下午
  * @package jcbowen\yiiswoole\websocket\console\components
  */

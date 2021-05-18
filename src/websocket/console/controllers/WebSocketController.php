@@ -1,8 +1,9 @@
 <?php
 /**
+ * WebSocket 启停控制器
  *
  * @author Bowen
- * @email 3308725087@qq.com
+ * @email bowen@jiuchet.com
  * @lastTime 2021/4/25 9:38 上午
  * @package jcbowen\yiiswoole\websocket\console\controllers
  */
