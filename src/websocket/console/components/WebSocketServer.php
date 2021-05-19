@@ -194,7 +194,7 @@ class WebSocketServer
         global $_B, $_GPC;
         echo 'server: handshake success!' . PHP_EOL;
 
-        $_B['WebSocket'] = ['server' => $server, 'frame' => $request];
+        $_B['WebSocket'] = ['server' => $server, 'frame' => $request, 'on' => 'open'];
 
         $_GPC = ArrayHelper::merge((array)$request->get, (array)$request->post);
         $route = $request->server['path_info'];
@@ -238,7 +238,7 @@ class WebSocketServer
     public function onMessage($server, $frame)
     {
         global $_GPC, $_B;
-        $_B['WebSocket'] = ['server' => $server, 'frame' => $frame];
+        $_B['WebSocket'] = ['server' => $server, 'frame' => $frame, 'on' => 'message'];
         $_GPC = ArrayHelper::merge($_GPC, (array)@json_decode($frame->data, true));
 
         $route = $this->_cache[$frame->fd]['route'];
@@ -260,11 +260,25 @@ class WebSocketServer
 
     public function onClose($server, $fd)
     {
-        $route = $this->_cache[$fd]['route'];
-        $a = $this->_cache[$fd]['a'];
-        echo $route . PHP_EOL;
-        echo $a . PHP_EOL;
+        global $_B;
+
         echo "client-{$fd} is closed" . PHP_EOL;
+
+        $_B['WebSocket'] = ['server' => $server, 'frame' => [], 'on' => 'close'];
+
+        $route = $this->_cache[$fd]['route'];
+        $_GPC['a'] = $this->_cache[$fd]['a'];
+
+        if (!empty($route) && $route != '/') {
+            try {
+                return Yii::$app->runAction($route);
+            } catch (Exception $e) {
+                Yii::info($e);
+                echo($e->getMessage());
+                return false;
+            }
+        }
+
     }
 
     /**
