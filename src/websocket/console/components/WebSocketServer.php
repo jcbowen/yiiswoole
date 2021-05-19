@@ -246,7 +246,7 @@ class WebSocketServer
 
         if (empty($route)) return $server->push($frame->fd, stripslashes(json_encode([
             'code' => 211,
-            'msg'  => '路由错误'
+            'msg'  => 'Empty Route'
         ], JSON_UNESCAPED_UNICODE)));
 
         try {
