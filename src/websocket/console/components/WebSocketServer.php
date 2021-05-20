@@ -239,22 +239,32 @@ class WebSocketServer
     {
         global $_GPC, $_B;
         $_B['WebSocket'] = ['server' => $server, 'frame' => $frame, 'on' => 'message'];
-        $_GPC = ArrayHelper::merge($_GPC, (array)@json_decode($frame->data, true));
 
-        $route = $this->_cache[$frame->fd]['route'];
-        if (!empty($_GPC['route'])) $route = $_GPC['route'];
+        $jsonData = (array)@json_decode($frame->data, true);
 
-        if (empty($route)) return $server->push($frame->fd, stripslashes(json_encode([
-            'code' => 211,
-            'msg'  => 'Empty Route'
-        ], JSON_UNESCAPED_UNICODE)));
+        if (empty($jsonData)) {
+            return $server->push($frame->fd, stripslashes(json_encode([
+                'code' => 200,
+                'msg'  => 'Heart Success'
+            ], JSON_UNESCAPED_UNICODE)));
+        } else {
+            $_GPC = ArrayHelper::merge($_GPC, $jsonData);
 
-        try {
-            return Yii::$app->runAction($route);
-        } catch (Exception $e) {
-            Yii::info($e);
-            echo($e->getMessage());
-            return false;
+            $route = $this->_cache[$frame->fd]['route'];
+            if (!empty($_GPC['route'])) $route = $_GPC['route'];
+
+            if (empty($route)) return $server->push($frame->fd, stripslashes(json_encode([
+                'code' => 211,
+                'msg'  => 'Empty Route'
+            ], JSON_UNESCAPED_UNICODE)));
+
+            try {
+                return Yii::$app->runAction($route);
+            } catch (Exception $e) {
+                Yii::info($e);
+                echo($e->getMessage());
+                return false;
+            }
         }
     }
 
@@ -275,10 +285,9 @@ class WebSocketServer
             } catch (Exception $e) {
                 Yii::info($e);
                 echo($e->getMessage());
-                return false;
             }
         }
-
+        return false;
     }
 
     /**
