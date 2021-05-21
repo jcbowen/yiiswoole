@@ -9,6 +9,7 @@
 
 namespace jcbowen\yiiswoole\websocket\console\components;
 
+use Closure;
 use Swoole\WebSocket\Server as WsServer;
 use Swoole\Process;
 use Yii;
@@ -98,6 +99,8 @@ class WebSocketServer
      */
     private $_cache = [];
 
+    private $_runCallBack = [];
+
     /**
      * WebSocketServer constructor.
      * @param $host
@@ -125,8 +128,10 @@ class WebSocketServer
      * @email bowen@jiuchet.com
      * @lastTime 2021/4/25 1:13 下午
      */
-    public function run(): WsServer
+    public function run($callbacks = []): WsServer
     {
+        $this->_runCallBack = $callbacks;
+
         if ($this->_type == 'ws') {
             $this->_ws = new WsServer($this->_host, $this->_port, $this->_mode, $this->_socketType);
         } else {
@@ -168,14 +173,38 @@ class WebSocketServer
         }
     }
 
+    /**
+     *
+     * @param $server
+     * @param $workerId
+     * @lasttime: 2021/5/21 10:13 上午
+     * @author Bowen
+     * @email bowen@jiuchet.com
+     */
     public function onWorkerStart($server, $workerId)
     {
         echo("服务开始运行, 监听 {$this->_host}:{$this->_port}" . PHP_EOL);
+        $callback = $this->_runCallBack['onWorkerStart'];
+        if (is_object($callback) && ($callback instanceof Closure)) {
+            $callback($server, $workerId);
+        }
     }
 
+    /**
+     *
+     * @param $server
+     * @param $workerId
+     * @lasttime: 2021/5/21 10:27 上午
+     * @author Bowen
+     * @email bowen@jiuchet.com
+     */
     public function onWorkerStop($server, $workerId)
     {
         echo '进程已经停止' . PHP_EOL;
+        $callback = $this->_runCallBack['onWorkerStop'];
+        if (is_object($callback) && ($callback instanceof Closure)) {
+            $callback($server, $workerId);
+        }
     }
 
     /**
@@ -183,11 +212,11 @@ class WebSocketServer
      *
      * @param $server
      * @param $request
-     *
+     * @return false|int|mixed|\yii\console\Response
+     * @throws \yii\base\InvalidRouteException
+     * @lasttime: 2021/5/21 10:14 上午
      * @author Bowen
      * @email bowen@jiuchet.com
-     * @lastTime 2021/4/25 12:58 下午
-     *
      */
     public function onOpen($server, $request)
     {
@@ -215,7 +244,7 @@ class WebSocketServer
             }
         }
 
-        $server->push($request->fd, stripslashes(json_encode([
+        return $server->push($request->fd, stripslashes(json_encode([
             'code'  => 200,
             'msg'   => 'handshake success',
             'route' => $route
@@ -281,6 +310,7 @@ class WebSocketServer
 
         if (!empty($route) && $route != '/') {
             try {
+                unset($this->_cache[$fd]);
                 return Yii::$app->runAction($route);
             } catch (Exception $e) {
                 Yii::info($e);
