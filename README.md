@@ -75,6 +75,7 @@ php yii websocket/restart
 
 ```
 {"route": "site/test", "message": "这是一条来自websocket客户端的消息"}
+（如果握手的时候，携带了目录路径，可以不用再携带route参数；仍然携带的话，以携带的为准）
 ```
 ##### websocket服务器接消息时，会将server和frame，存放到局部变量```$_B```中；
 ##### 同时将接收到的json转为数组，存放到局部变量```$_GPC```中；
@@ -83,23 +84,33 @@ php yii websocket/restart
 public function onMessage($server, $frame)
 {
     global $_GPC, $_B;
-    $_B['WebSocket'] = ['server' => $server, 'frame' => $frame];
-    $_GPC = ArrayHelper::merge($_GPC, (array)@json_decode($frame->data, true));
+    $_B['WebSocket'] = ['server' => $server, 'frame' => $frame, 'on' => 'message'];
 
-    $route = $_GPC['route'];
-    unset($_GPC['route']);
+    $jsonData = (array)@json_decode($frame->data, true);
 
-    if (empty($route)) return $server->push($frame->fd, stripslashes(json_encode([
-        'code' => 211,
-        'msg'  => '路由错误'
-    ], JSON_UNESCAPED_UNICODE)));
+    if (empty($jsonData)) {
+        return $server->push($frame->fd, stripslashes(json_encode([
+            'code' => 200,
+            'msg'  => 'Heart Success'
+        ], JSON_UNESCAPED_UNICODE)));
+    } else {
+        $_GPC = ArrayHelper::merge($_GPC, $jsonData);
 
-    try {
-        return Yii::$app->runAction($route);
-    } catch (Exception $e) {
-        Yii::info($e);
-        echo($e->getMessage());
-        return false;
+        $route = $this->_cache[$frame->fd]['route'];
+        if (!empty($_GPC['route'])) $route = $_GPC['route'];
+
+        if (empty($route)) return $server->push($frame->fd, stripslashes(json_encode([
+            'code' => 211,
+            'msg'  => 'Empty Route'
+        ], JSON_UNESCAPED_UNICODE)));
+
+        try {
+            return Yii::$app->runAction($route);
+        } catch (Exception $e) {
+            Yii::info($e);
+            echo($e->getMessage());
+            return false;
+        }
     }
 }
 
@@ -114,6 +125,8 @@ class SiteController extends Controller
     public function actionTest()
     {
         global $_B, $_GPC;
+
+        // $_B['WebSocket']['on']可以判断是通过什么方式转发过来的
 
         $ws = $_B['WebSocket']['server'];
         $frame = $_B['WebSocket']['frame'];
