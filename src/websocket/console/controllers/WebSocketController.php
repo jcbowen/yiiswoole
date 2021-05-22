@@ -139,7 +139,7 @@ class WebSocketController extends Controller
         }
 
         if ($this->server->getPid() === false) {
-            $this->stdout("进程停止成功，开始重启" . PHP_EOL);
+            $this->stdout("进程停止成功，正在重启" . PHP_EOL);
         } else {
             $this->stdout("进程停止错误, 请手动停止" . PHP_EOL);
         }
