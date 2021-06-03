@@ -223,14 +223,21 @@ class WebSocketServer
         global $_B, $_GPC;
         echo 'server: handshake success!' . PHP_EOL;
 
-        $_B['WebSocket'] = ['server' => $server, 'frame' => $request, 'on' => 'open'];
+        $version = trim($_GPC['v']);
+
+        $_B['WebSocket'] = [
+            'server' => $server, 'frame' => $request, 'on' => 'open', 'params' => [
+                'version' => $version
+            ]
+        ];
 
         $_GPC = ArrayHelper::merge((array)$request->get, (array)$request->post);
         $route = $request->server['path_info'];
 
         $this->_cache[$request->fd] = [
-            'route' => $route,
-            'a'     => $_GPC['a']
+            'route'   => $route,
+            'version' => $version,
+            'a'       => $_GPC['a']
         ];
 
         // 有route的情况才执行
@@ -267,7 +274,9 @@ class WebSocketServer
     public function onMessage($server, $frame)
     {
         global $_GPC, $_B;
-        $_B['WebSocket'] = ['server' => $server, 'frame' => $frame, 'on' => 'message'];
+        $_B['WebSocket'] = ['server' => $server, 'frame' => $frame, 'on' => 'message', 'params' => [
+            'version' => $this->_cache[$frame->fd]['version']
+        ]];
 
         $jsonData = (array)@json_decode($frame->data, true);
 
