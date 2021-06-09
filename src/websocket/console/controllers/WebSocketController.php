@@ -16,6 +16,9 @@ class WebSocketController extends Controller
 {
     public $serverClass;
 
+    /**
+     * @var \jcbowen\yiiswoole\websocket\console\components\WebSocketServer
+     */
     public $server;
 
     /**
@@ -28,13 +31,6 @@ class WebSocketController extends Controller
      */
     public $host = '0.0.0.0';
 
-    /**
-     * 指定监听的端口
-     *
-     * 默认9410
-     *
-     * @var string
-     */
     /**
      * 指定监听的端口
      *

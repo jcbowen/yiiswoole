@@ -7,7 +7,6 @@ namespace jcbowen\yiiswoole\websocket\console\components;
 
 use Swoole\Coroutine;
 use Swoole\ExitException as SwExitException;
-use yii\helpers\ArrayHelper;
 
 class Context
 {
