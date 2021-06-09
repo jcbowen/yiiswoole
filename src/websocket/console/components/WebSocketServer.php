@@ -19,24 +19,24 @@ use yii\helpers\ArrayHelper;
 class WebSocketServer
 {
     /**
-     * 指定监听的 ip 地址
+     * 监听的 ip 地址
      *
      * IPv4 使用 127.0.0.1 表示监听本机，0.0.0.0 表示监听所有地址
      * IPv6 使用::1 表示监听本机，:: (相当于 0:0:0:0:0:0:0:0) 表示监听所有地址
      *
      * @var string
      */
-    protected $_host;
+    public $_host;
 
     /**
-     * 指定监听的端口
+     * 监听的端口
      *
      * @var string
      */
-    protected $_port;
+    public $_port;
 
     /**
-     * 指定运行模式
+     * 运行模式
      *
      * 默认值：SWOOLE_PROCESS 多进程模式（默认）
      * 其它值：SWOOLE_BASE 基本模式
@@ -45,7 +45,7 @@ class WebSocketServer
     protected $_mode;
 
     /**
-     * 指定这组 Server 的类型
+     * 这组 Server 的类型
      *
      * 默认值：无
      * 其它值：
@@ -61,11 +61,11 @@ class WebSocketServer
     protected $_socketType;
 
     /**
-     * 指定运行的是wss还是ws
+     * 运行的是wss还是ws
      *
      * @var string
      */
-    protected $_type;
+    public $_type;
 
     /**
      * 配置信息
@@ -100,6 +100,8 @@ class WebSocketServer
     private $_cache = [];
 
     private $_runCallBack = [];
+
+    private $_gpc = [];
 
     /**
      * WebSocketServer constructor.
@@ -220,8 +222,10 @@ class WebSocketServer
      */
     public function onOpen($server, $request)
     {
-        global $_B, $_GPC;
+        Context::getBG($_B, $_GPC);
         echo 'server: handshake success!' . PHP_EOL;
+
+        $_GPC = ArrayHelper::merge((array)$request->get, (array)$request->post);
 
         $version = trim($_GPC['v']);
 
@@ -231,7 +235,6 @@ class WebSocketServer
             ]
         ];
 
-        $_GPC = ArrayHelper::merge((array)$request->get, (array)$request->post);
         $route = $request->server['path_info'];
 
         $this->_cache[$request->fd] = [
@@ -239,6 +242,12 @@ class WebSocketServer
             'version' => $version,
             'a'       => $_GPC['a']
         ];
+
+        $this->_gpc = $_GPC;
+        Context::putBG([
+            '_B'   => $_B,
+            '_GPC' => $_GPC,
+        ]);
 
         // 有route的情况才执行
         if (!empty($route) && $route !== '/') {
@@ -273,10 +282,13 @@ class WebSocketServer
      */
     public function onMessage($server, $frame)
     {
-        global $_GPC, $_B;
-        $_B['WebSocket'] = ['server' => $server, 'frame' => $frame, 'on' => 'message', 'params' => [
-            'version' => $this->_cache[$frame->fd]['version']
-        ]];
+        Context::getBG($_B, $_GPC);
+
+        $_B['WebSocket'] = [
+            'server' => $server, 'frame' => $frame, 'on' => 'message', 'params' => [
+                'version' => $this->_cache[$frame->fd]['version']
+            ]
+        ];
 
         $jsonData = (array)@json_decode($frame->data, true);
 
@@ -286,10 +298,15 @@ class WebSocketServer
                 'msg'  => 'Heart Success'
             ], JSON_UNESCAPED_UNICODE)));
         } else {
-            $_GPC = ArrayHelper::merge($_GPC, $jsonData);
+            $_GPC = ArrayHelper::merge((array)$this->_gpc, (array)$_GPC, $jsonData);
 
             $route = $this->_cache[$frame->fd]['route'];
             if (!empty($_GPC['route'])) $route = $_GPC['route'];
+
+            Context::putBG([
+                '_GPC' => $_GPC,
+                '_B'   => $_B
+            ]);
 
             if (empty($route)) return $server->push($frame->fd, stripslashes(json_encode([
                 'code' => 211,
@@ -308,14 +325,20 @@ class WebSocketServer
 
     public function onClose($server, $fd)
     {
-        global $_B;
+        Context::getBG($_B, $_GPC);
 
         echo "client-{$fd} is closed" . PHP_EOL;
 
         $_B['WebSocket'] = ['server' => $server, 'frame' => [], 'on' => 'close'];
 
         $route = $this->_cache[$fd]['route'];
-        $_GPC['a'] = $this->_cache[$fd]['a'];
+
+        $_GPC = ArrayHelper::merge((array)$this->_gpc, (array)$_GPC);
+
+        Context::putBG([
+            '_B'   => $_B,
+            '_GPC' => $_GPC,
+        ]);
 
         if (!empty($route) && $route != '/') {
             try {
