@@ -178,19 +178,8 @@ public function onMessage($server, $frame)
 ### 在控制器方法中使用
 ```
 class SiteController extends Controller
-{
+{    
     public function actionTest()
-    {
-        global $_B, $_GPC;
-
-        // $_B['WebSocket']['on']可以判断是通过什么方式转发过来的
-
-        $ws = $_B['WebSocket']['server'];
-        $frame = $_B['WebSocket']['frame'];
-        return $ws->push($frame->fd, $_GPC['message']);
-    }
-    
-    public function actionIndex()
     {
         Context::getBG($_B, $_GPC);
         
