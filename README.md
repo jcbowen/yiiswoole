@@ -33,7 +33,7 @@ composer require "jcbowen/yiiswoole"
 或者在 `composer.json` 加入
 
 ```
-"jcbowen/yiiswoole": "^1.0"
+"jcbowen/yiiswoole": "^1.3"
 ```
 
 ### 配置说明
@@ -42,6 +42,7 @@ composer require "jcbowen/yiiswoole"
 
 （`SL_CONSOLE_RUNTIME`是我定义的runtime目录的常量，使用时记得替换掉）
 
+1.3.0之前的配置方法
 ```
 'websocket' => [
     'class'       => 'jcbowen\yiiswoole\websocket\console\controllers\WebSocketController',
@@ -57,9 +58,44 @@ composer require "jcbowen/yiiswoole"
     ],
 ],
 ```
+1.3.0之后的配置方法(示例的是同时支持ws和wss的配置，使用wss时注意配置cert证书的路径)
+```
+'websockets' => [
+            'class'       => 'jcbowen\yiiswoole\websocket\console\controllers\WebSocketsController',
+            'serverClass' => 'jcbowen\yiiswoole\websocket\console\components\Server',
+            'ports'       => [
+                // 第一个为websocket主服务
+                'ws'  => [
+                    'host'   => '0.0.0.0',
+                    'port'   => 9408,
+                    'type'   => 'ws',
+                    'config' => [// 标准的swoole4配置项都可以再此加入
+                                 'daemonize'                => true,// 守护进程执行
+                                 'heartbeat_check_interval' => 60, // 启用心跳检测，默认为false
+                                 'heartbeat_idle_time'      => 60 * 2, // 连接最大允许空闲的时间，启用心跳检测的情况下，如未设置，默认未心跳检测的两倍
+                                 'pid_file'                 => SL_CONSOLE_RUNTIME . '/logs/websocket.pid',
+                                 'log_file'                 => SL_CONSOLE_RUNTIME . '/logs/websocket.log',
+                                 'log_level'                => SWOOLE_LOG_ERROR,
+                    ],
+                ],
+                'wss' => [
+                    'host'   => '0.0.0.0',
+                    'port'   => 9410,
+                    'type'   => 'wss',
+                    'config' => [// 标准的swoole4配置项都可以再此加入
+                                 'open_http_protocol'      => true,
+                                 'open_websocket_protocol' => true,
+                                 'ssl_cert_file'           => __DIR__ . '/cert/fullchain.pem',
+                                 'ssl_key_file'            => __DIR__ . '/cert/privkey.pem',
+                    ],
+                ]
+            ],
+        ],
+```
 
 ### 使用
 
+1.3.0以前的版本
 ```
 # 启动 
 php yii websocket/start
@@ -67,6 +103,15 @@ php yii websocket/start
 php yii websocket/stop
 # 重启 
 php yii websocket/restart
+```
+1.3.0及之后的版本
+```
+# 启动 
+php yii websockets/start
+# 停止 
+php yii websockets/stop
+# 重启 
+php yii websockets/restart
 ```
 
 ### 运行说明
@@ -77,42 +122,54 @@ php yii websocket/restart
 {"route": "site/test", "message": "这是一条来自websocket客户端的消息"}
 （如果握手的时候，携带了目录路径，可以不用再携带route参数；仍然携带的话，以携带的为准）
 ```
-##### websocket服务器接消息时，会将server和frame，存放到局部变量```$_B```中；
-##### 同时将接收到的json转为数组，存放到局部变量```$_GPC```中；
-##### 接着就根据route，调用console里controllers目录中的控制器方法。
+##### 通过执行\jcbowen\yiiswoole\websocket\console\componentsContext::getBG($_B, $_GPC)方法，可以读取上下文中缓存的信息；
+##### 其中server和frame会被缓存到```$_B```中；
+##### 接收到的json会被转为数组后缓存到```$_GPC```中；
+##### 携带的目录代表的是监听到动作后转发到哪个路由(由于通过console运行的进程，所以这里的路由指的是console里的路由)。
 ```
+// 这里展示onMessage的源码，用来理解实现原理
 public function onMessage($server, $frame)
-{
-    global $_GPC, $_B;
-    $_B['WebSocket'] = ['server' => $server, 'frame' => $frame, 'on' => 'message'];
+    {
+        Context::getBG($_B, $_GPC);
 
-    $jsonData = (array)@json_decode($frame->data, true);
+        $_B['WebSocket'] = [
+            'server' => $server, 'frame' => $frame, 'on' => 'message', 'params' => [
+                'version' => $this->_cache[$frame->fd]['version']
+            ]
+        ];
 
-    if (empty($jsonData)) {
-        return $server->push($frame->fd, stripslashes(json_encode([
-            'code' => 200,
-            'msg'  => 'Heart Success'
-        ], JSON_UNESCAPED_UNICODE)));
-    } else {
-        $_GPC = ArrayHelper::merge($_GPC, $jsonData);
+        $jsonData = (array)@json_decode($frame->data, true);
 
-        $route = $this->_cache[$frame->fd]['route'];
-        if (!empty($_GPC['route'])) $route = $_GPC['route'];
+        if (empty($jsonData)) {
+            return $server->push($frame->fd, stripslashes(json_encode([
+                'code' => 200,
+                'msg'  => 'Heart Success'
+            ], JSON_UNESCAPED_UNICODE)));
+        } else {
+            $_GPC = ArrayHelper::merge((array)$this->_gpc, (array)$_GPC, $jsonData);
 
-        if (empty($route)) return $server->push($frame->fd, stripslashes(json_encode([
-            'code' => 211,
-            'msg'  => 'Empty Route'
-        ], JSON_UNESCAPED_UNICODE)));
+            $route = $this->_cache[$frame->fd]['route'];
+            if (!empty($_GPC['route'])) $route = $_GPC['route'];
 
-        try {
-            return Yii::$app->runAction($route);
-        } catch (Exception $e) {
-            Yii::info($e);
-            echo($e->getMessage());
-            return false;
+            Context::putBG([
+                '_GPC' => $_GPC,
+                '_B'   => $_B
+            ]);
+
+            if (empty($route)) return $server->push($frame->fd, stripslashes(json_encode([
+                'code' => 211,
+                'msg'  => 'Empty Route'
+            ], JSON_UNESCAPED_UNICODE)));
+
+            try {
+                return Yii::$app->runAction($route);
+            } catch (Exception $e) {
+                Yii::info($e);
+                echo($e->getMessage());
+                return false;
+            }
         }
     }
-}
 
 ```
 
@@ -132,5 +189,18 @@ class SiteController extends Controller
         $frame = $_B['WebSocket']['frame'];
         return $ws->push($frame->fd, $_GPC['message']);
     }
+    
+    public function actionIndex()
+    {
+        Context::getBG($_B, $_GPC);
+        
+        // 可以根据$_B['WebSocket']['on']判断是通过什么方式转发过来的
+        // $_B['WebSocket']['on']的值有open/message/close
+
+        $ws = $_B['WebSocket']['server'];
+        $frame = $_B['WebSocket']['frame'];
+        return $ws->push($frame->fd, $_GPC['message']);
+    }
+    
 }
 ```
