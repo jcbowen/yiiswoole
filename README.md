@@ -186,7 +186,7 @@ class SiteController extends Controller
         $frame = $_B['WebSocket']['frame'];
         
         $tables = $_B['WebSocket']['tables'];
-        /** @var Table $table */
+        /** @var \Swoole\Table $table */
         $table = $tables['test_table'];
         
         return $ws->push($frame->fd, $_GPC['message']);
