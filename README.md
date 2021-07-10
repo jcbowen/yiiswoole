@@ -4,7 +4,7 @@
 
 Yii2+Swoole4
 
-目前仅实现了websocket服务器
+目前实现了websocket服务器，同时支持了高性能共享内存Table的使用
 
 ### 不兼容说明
 
@@ -33,7 +33,7 @@ composer require "jcbowen/yiiswoole"
 或者在 `composer.json` 加入
 
 ```
-"jcbowen/yiiswoole": "^1.3"
+"jcbowen/yiiswoole": "^2.0"
 ```
 
 ### 配置说明
@@ -42,27 +42,12 @@ composer require "jcbowen/yiiswoole"
 
 （`SL_CONSOLE_RUNTIME`是我定义的runtime目录的常量，使用时记得替换掉）
 
-1.3.0之前的配置方法
-```
-'websocket' => [
-    'class'       => 'jcbowen\yiiswoole\websocket\console\controllers\WebSocketController',
-    'serverClass' => 'jcbowen\yiiswoole\websocket\console\components\WebSocketServer',
-    'host'        => '0.0.0.0',
-    'port'        => 9410,
-    'type'        => 'ws',
-    'config'      => [// swoole4配置项
-        'daemonize' => false,// 守护进程执行
-        'pid_file'  => SL_CONSOLE_RUNTIME . '/logs/websocket.pid',
-        'log_file'  => SL_CONSOLE_RUNTIME . '/logs/websocket.log',
-        'log_level' => SWOOLE_LOG_ERROR,
-    ],
-],
-```
-1.3.0之后的配置方法(示例的是同时支持ws和wss的配置，使用wss时注意配置cert证书的路径)
+2.0.0之后的配置方法(示例的是同时支持ws和wss的配置，使用wss时注意配置cert证书的路径)
 ```
 'websockets' => [
             'class'       => 'jcbowen\yiiswoole\websocket\console\controllers\WebSocketsController',
             'serverClass' => 'jcbowen\yiiswoole\websocket\console\components\Server',
+            'onWebsocket' => 'console\components\onWebsocket',
             'ports'       => [
                 // 第一个为websocket主服务
                 'ws'  => [
@@ -90,20 +75,22 @@ composer require "jcbowen/yiiswoole"
                     ],
                 ]
             ],
+            'tables'      => [
+                'test_table' => [ // 具体配置参考Swoole\Table
+                    'size'                => 10000, // 指定表格的最大行数
+                    'conflict_proportion' => 0.2, // 哈希冲突的最大比例
+                    'column'              => [
+                        [
+                            'name' => 'fd',
+                            'type' => Swoole\Table::TYPE_INT,
+                        ]
+                    ]
+                ]
+            ],
         ],
 ```
 
 ### 使用
-
-1.3.0以前的版本
-```
-# 启动 
-php yii websocket/start
-# 停止 
-php yii websocket/stop
-# 重启 
-php yii websocket/restart
-```
 1.3.0及之后的版本
 ```
 # 启动 
@@ -133,9 +120,13 @@ public function onMessage($server, $frame)
         Context::getBG($_B, $_GPC);
 
         $_B['WebSocket'] = [
-            'server' => $server, 'frame' => $frame, 'on' => 'message', 'params' => [
+            'server' => $server,
+            'frame'  => $frame,
+            'on'     => 'message',
+            'params' => [
                 'version' => $this->_cache[$frame->fd]['version']
-            ]
+            ],
+            'tables' => $this->_tables // 创建好了的Swoole\Table会被放到这个数组中
         ];
 
         $jsonData = (array)@json_decode($frame->data, true);
@@ -148,8 +139,9 @@ public function onMessage($server, $frame)
         } else {
             $_GPC = ArrayHelper::merge((array)$this->_gpc, (array)$_GPC, $jsonData);
 
-            $route = $this->_cache[$frame->fd]['route'];
-            if (!empty($_GPC['route'])) $route = $_GPC['route'];
+            $route = $cacheRoute = $this->_cache[$frame->fd]['route'];
+            $gpcRoute = trim($_GPC['route']);
+            if (!empty($gpcRoute)) $route = $gpcRoute;
 
             Context::putBG([
                 '_GPC' => $_GPC,
@@ -157,8 +149,11 @@ public function onMessage($server, $frame)
             ]);
 
             if (empty($route)) return $server->push($frame->fd, stripslashes(json_encode([
-                'code' => 211,
-                'msg'  => 'Empty Route'
+                'code'  => 211,
+                'msg'   => 'Empty Route',
+                'cr'    => $cacheRoute,
+                'gr'    => $gpcRoute,
+                'cache' => $this->_cache
             ], JSON_UNESCAPED_UNICODE)));
 
             try {
@@ -186,8 +181,14 @@ class SiteController extends Controller
         // 可以根据$_B['WebSocket']['on']判断是通过什么方式转发过来的
         // $_B['WebSocket']['on']的值有open/message/close
 
+        /** @var \swoole\websocket\server $ws */
         $ws = $_B['WebSocket']['server'];
         $frame = $_B['WebSocket']['frame'];
+        
+        $tables = $_B['WebSocket']['tables'];
+        /** @var Table $table */
+        $table = $tables['test_table'];
+        
         return $ws->push($frame->fd, $_GPC['message']);
     }
     
