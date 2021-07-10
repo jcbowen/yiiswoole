@@ -6,7 +6,6 @@
 namespace jcbowen\yiiswoole\websocket\console\components;
 
 use Swoole\Coroutine;
-use Swoole\ExitException as SwExitException;
 
 class Context
 {
@@ -46,6 +45,7 @@ class Context
         }
     }
 
+    //--- 未隔离，Begin ---/
     static function getGlobal($key)
     {
         $cid = Coroutine::getuid();
@@ -61,6 +61,7 @@ class Context
         $cid = Coroutine::getuid();
         if ($cid > 0) self::$globalPool[$key] = $item;
     }
+    //--- 未隔离，End ---/
 
     //------ 用来兼容旧版本的，Begin ------/
     static function getBG(&$_B = [], &$_GPC = [])
@@ -92,8 +93,8 @@ class Context
     {
         try {
             exit(0);
-        } catch (SwExitException $e) {
-            throw new SwExitException($e->getMessage() . PHP_EOL);
+        } catch (\Swoole\ExitException $e) {
+            echo $e->getMessage() . PHP_EOL;
         }
     }
 }

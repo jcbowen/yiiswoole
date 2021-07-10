@@ -9,7 +9,6 @@
 
 namespace jcbowen\yiiswoole\websocket\console\components;
 
-use Closure;
 use Swoole\WebSocket\Server as WsServer;
 use Swoole\Process;
 use Yii;
@@ -18,7 +17,16 @@ use yii\helpers\ArrayHelper;
 
 class Server
 {
+    protected $tablesConfig;
+
     protected $serverConfig;
+
+    protected $onWebsocket;
+
+    /**
+     * @var array
+     */
+    public $_tables = [];
 
     /**
      * @var WsServer
@@ -44,17 +52,20 @@ class Server
      */
     private $_cache = [];
 
-    private $_runCallBack = [];
-
     private $_gpc = [];
 
     /**
      * Server constructor.
      * @param $serverConfig
+     * @param $onWebsocket
      */
-    public function __construct($serverConfig)
+    public function __construct($serverConfig, $onWebsocket = null, $tablesConfig = [])
     {
+        $this->tablesConfig = $tablesConfig;
+
         $this->serverConfig = $serverConfig;
+
+        $this->onWebsocket = $onWebsocket ?: null;
 
         foreach ($serverConfig as $item) {
             if (!empty($item['config']['pid_file'])) {
@@ -82,9 +93,23 @@ class Server
      * @email bowen@jiuchet.com
      * @lastTime 2021/4/25 1:13 下午
      */
-    public function run($callbacks = []): WsServer
+    public function run(): WsServer
     {
-        $this->_runCallBack = $callbacks;
+        // 遍历创建Table
+        if (!empty($this->tablesConfig) && is_array($this->tablesConfig)) {
+            foreach ((array)$this->tablesConfig as $ind => $tableConfig) {
+                if (empty($tableConfig['column']) || !is_array($tableConfig['column'])) continue;
+                $tableSize = $tableConfig['size'] ?: 1024;
+                $conflict_proportion = $tableConfig['conflict_proportion'] ?: 0.2;
+                /** @var \Swoole\Table */
+                $this->_tables[$ind] = new \Swoole\Table($tableSize, $conflict_proportion);
+
+                foreach ($tableConfig['column'] as $column) {
+                    $this->_tables[$ind]->column($column['name'], $column['type'], $column['size']);
+                }
+                $this->_tables[$ind]->create();
+            }
+        }
 
         static $first = '';
 
@@ -128,7 +153,12 @@ class Server
     public function stop(): bool
     {
         if ($pid = $this->getPid()) {
-            return Process::kill($pid, SIGTERM);
+            if ($this->onWorkerStop($this->_ws, false)) {
+                return Process::kill($pid, SIGTERM);
+            } else {
+                echo '结束服务被终止' . PHP_EOL;
+                return false;
+            }
         } else {
             echo '进程未启动，无需停止' . PHP_EOL;
             return false;
@@ -137,36 +167,67 @@ class Server
 
     /**
      *
-     * @param $server
-     * @param $workerId
+     * @param \Swoole\Server $server
+     * @param int|bool $workerId
      * @lasttime: 2021/5/21 10:13 上午
      * @author Bowen
      * @email bowen@jiuchet.com
      */
     public function onWorkerStart($server, $workerId)
     {
+        Context::getBG($_B, $_GPC);
+
         echo("服务开始运行, 监听" . json_encode($this->ports) . PHP_EOL);
-        $callback = $this->_runCallBack['onWorkerStart'];
-        if (is_object($callback) && ($callback instanceof Closure)) {
-            $callback($server, $workerId);
+
+        $_B['WebSocket'] = [
+            'server'   => $server,
+            'workerId' => $workerId,
+            'on'       => 'start',
+            'tables'   => $this->_tables
+        ];
+
+        Context::putBG(['_B' => $_B]);
+
+        if ($this->onWebsocket) {
+            if (method_exists($this->onWebsocket, 'onWorkerStart')) {
+                return call_user_func_array([$this->onWebsocket, 'onWorkerStart'], [$server, $workerId]);
+            }
         }
+
+        return true;
+
     }
 
     /**
      *
-     * @param $server
-     * @param $workerId
-     * @lasttime: 2021/5/21 10:27 上午
+     * @param \Swoole\Server $server
+     * @param int|bool $workerId
+     * @return bool
+     * @lasttime: 2021/6/22 3:41 下午
      * @author Bowen
      * @email bowen@jiuchet.com
      */
     public function onWorkerStop($server, $workerId)
     {
+        Context::getBG($_B, $_GPC);
+
+        $_B['WebSocket'] = [
+            'server'   => $server,
+            'workerId' => $workerId,
+            'on'       => 'stop',
+            'tables'   => $this->_tables
+        ];
+
+        Context::putBG(['_B' => $_B]);
+
         echo '进程已经停止' . PHP_EOL;
-        $callback = $this->_runCallBack['onWorkerStop'];
-        if (is_object($callback) && ($callback instanceof Closure)) {
-            $callback($server, $workerId);
+        if ($this->onWebsocket) {
+            if (method_exists($this->onWebsocket, 'onWorkerStop')) {
+                return call_user_func_array([$this->onWebsocket, 'onWorkerStop'], [$server, $workerId]);
+            }
         }
+
+        return true;
     }
 
     /**
@@ -190,9 +251,13 @@ class Server
         $version = trim($_GPC['v']);
 
         $_B['WebSocket'] = [
-            'server' => $server, 'frame' => $request, 'on' => 'open', 'params' => [
+            'server' => $server,
+            'frame'  => $request,
+            'on'     => 'open',
+            'params' => [
                 'version' => $version
-            ]
+            ],
+            'tables' => $this->_tables
         ];
 
         $route = $request->server['path_info'];
@@ -245,9 +310,13 @@ class Server
         Context::getBG($_B, $_GPC);
 
         $_B['WebSocket'] = [
-            'server' => $server, 'frame' => $frame, 'on' => 'message', 'params' => [
+            'server' => $server,
+            'frame'  => $frame,
+            'on'     => 'message',
+            'params' => [
                 'version' => $this->_cache[$frame->fd]['version']
-            ]
+            ],
+            'tables' => $this->_tables
         ];
 
         $jsonData = (array)@json_decode($frame->data, true);
@@ -260,8 +329,9 @@ class Server
         } else {
             $_GPC = ArrayHelper::merge((array)$this->_gpc, (array)$_GPC, $jsonData);
 
-            $route = $this->_cache[$frame->fd]['route'];
-            if (!empty($_GPC['route'])) $route = $_GPC['route'];
+            $route = $cacheRoute = $this->_cache[$frame->fd]['route'];
+            $gpcRoute = trim($_GPC['route']);
+            if (!empty($gpcRoute)) $route = $gpcRoute;
 
             Context::putBG([
                 '_GPC' => $_GPC,
@@ -269,8 +339,11 @@ class Server
             ]);
 
             if (empty($route)) return $server->push($frame->fd, stripslashes(json_encode([
-                'code' => 211,
-                'msg'  => 'Empty Route'
+                'code'  => 211,
+                'msg'   => 'Empty Route',
+                'cr'    => $cacheRoute,
+                'gr'    => $gpcRoute,
+                'cache' => $this->_cache
             ], JSON_UNESCAPED_UNICODE)));
 
             try {
@@ -300,7 +373,12 @@ class Server
 
         echo "client-{$fd} is closed" . PHP_EOL;
 
-        $_B['WebSocket'] = ['server' => $server, 'frame' => [], 'on' => 'close'];
+        $_B['WebSocket'] = [
+            'server' => $server,
+            'frame'  => [],
+            'on'     => 'close',
+            'tables' => $this->_tables
+        ];
 
         $route = $this->_cache[$fd]['route'];
 

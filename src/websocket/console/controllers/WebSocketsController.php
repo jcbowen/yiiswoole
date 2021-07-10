@@ -17,15 +17,27 @@ use yii\helpers\ArrayHelper;
 class WebSocketsController extends Controller
 {
     /**
-     * @string \jcbowen\yiiswoole\websocket\console\components\Server
+     * @var string Server
      */
     public $serverClass;
+
+    /**
+     * 监听拓展组件
+     * @var string
+     */
+    public $onWebsocket;
 
     /**
      * 监听多端口时，每个端口的配置信息
      * @var array
      */
     public $ports = [];
+
+    /**
+     * swooleTables
+     * @var array
+     */
+    public $tables = [];
 
     /**
      * @var Server
@@ -47,7 +59,14 @@ class WebSocketsController extends Controller
             foreach ($this->ports as &$item) {
                 $item = $this->initPorts($item);
             }
-            $this->server = new $this->serverClass($this->ports);
+
+            $onWebsocket = null;
+            if (!empty($this->onWebsocket)) {
+                if (class_exists($this->onWebsocket)) {
+                    $onWebsocket = new $this->onWebsocket();
+                }
+            }
+            $this->server = new $this->serverClass($this->ports, $onWebsocket, $this->tables);
         }
     }
 
