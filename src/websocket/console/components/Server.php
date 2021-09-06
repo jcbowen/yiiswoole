@@ -23,6 +23,9 @@ class Server
 
     protected $onWebsocket;
 
+    /** @var \Swoole\Table */
+    protected $contextTable;
+
     /**
      * @var array
      */
@@ -44,15 +47,6 @@ class Server
      * @var array
      */
     public $ports = [];
-
-    /**
-     * 局部缓存变量
-     *
-     * @var array
-     */
-    private $_cache = [];
-
-    private $_gpc = [];
 
     /**
      * Server constructor.
@@ -83,6 +77,14 @@ class Server
             echo '配置信息为空，请检查websocket多端口监听的配置文件' . PHP_EOL;
             die();
         }
+
+        // 上下文缓存table
+        $this->contextTable = new \Swoole\Table(10240, 0.2);
+        $this->contextTable->column('fd', \Swoole\Table::TYPE_INT);
+        $this->contextTable->column('route', \Swoole\Table::TYPE_STRING, '240');
+        $this->contextTable->column('version', \Swoole\Table::TYPE_STRING, '32');
+        $this->contextTable->column('a', \Swoole\Table::TYPE_STRING, '240');
+        $this->contextTable->create();
     }
 
     /**
@@ -262,13 +264,15 @@ class Server
 
         $route = $request->server['path_info'];
 
-        $this->_cache[$request->fd] = [
+        $this->contextTable->set($request->fd, [
+            'fd'      => $request->fd,
             'route'   => $route,
             'version' => $version,
-            'a'       => $_GPC['a']
-        ];
+            'a'       => (string)$_GPC['a']
+        ]);
 
-        $this->_gpc = $_GPC;
+
+        Context::putGlobal('fd_gpc_' . $request->fd, $_GPC);
         Context::putBG([
             '_B'   => $_B,
             '_GPC' => $_GPC,
@@ -295,7 +299,7 @@ class Server
     /**
      * 监听消息
      *
-     * @param $server
+     * @param WsServer $server
      * @param $frame
      *
      * @return false|int|mixed|\yii\console\Response
@@ -314,7 +318,7 @@ class Server
             'frame'  => $frame,
             'on'     => 'message',
             'params' => [
-                'version' => $this->_cache[$frame->fd]['version']
+                'version' => $this->contextTable->get($frame->fd, 'version')
             ],
             'tables' => $this->_tables
         ];
@@ -327,9 +331,9 @@ class Server
                 'msg'  => 'Heart Success'
             ], JSON_UNESCAPED_UNICODE)));
         } else {
-            $_GPC = ArrayHelper::merge((array)$this->_gpc, (array)$_GPC, $jsonData);
+            $_GPC = ArrayHelper::merge((array)Context::getGlobal('fd_gpc_' . $frame->fd), (array)$_GPC, $jsonData);
 
-            $route = $cacheRoute = $this->_cache[$frame->fd]['route'];
+            $route = $cacheRoute = $this->contextTable->get($frame->fd, 'route');
             $gpcRoute = trim($_GPC['route']);
             if (!empty($gpcRoute)) $route = $gpcRoute;
 
@@ -343,7 +347,7 @@ class Server
                 'msg'   => 'Empty Route',
                 'cr'    => $cacheRoute,
                 'gr'    => $gpcRoute,
-                'cache' => $this->_cache
+                'cache' => $this->contextTable->get($frame->fd)
             ], JSON_UNESCAPED_UNICODE)));
 
             try {
@@ -380,18 +384,20 @@ class Server
             'tables' => $this->_tables
         ];
 
-        $route = $this->_cache[$fd]['route'];
+        $route = $this->contextTable->get($fd, 'route');
 
-        $_GPC = ArrayHelper::merge((array)$this->_gpc, (array)$_GPC);
+        $_GPC = ArrayHelper::merge((array)Context::getGlobal('fd_gpc_' . $fd), (array)$_GPC);
 
         Context::putBG([
             '_B'   => $_B,
             '_GPC' => $_GPC,
         ]);
 
+        // 断开连接的时候，清理掉，节约内存
+        $this->contextTable->del($fd);
+
         if (!empty($route) && $route != '/') {
             try {
-                unset($this->_cache[$fd]);
                 return Yii::$app->runAction($route);
             } catch (Exception $e) {
                 Yii::info($e);
