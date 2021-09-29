@@ -253,6 +253,7 @@ class Server
         $version = trim($_GPC['v']);
 
         $_B['WebSocket'] = [
+            'fd'     => $request->fd,
             'server' => $server,
             'frame'  => $request,
             'on'     => 'open',
@@ -314,6 +315,7 @@ class Server
         Context::getBG($_B, $_GPC);
 
         $_B['WebSocket'] = [
+            'fd'     => $frame->fd,
             'server' => $server,
             'frame'  => $frame,
             'on'     => 'message',
@@ -378,6 +380,7 @@ class Server
         echo "client-{$fd} is closed" . PHP_EOL;
 
         $_B['WebSocket'] = [
+            'fd'     => $fd,
             'server' => $server,
             'frame'  => [],
             'on'     => 'close',
