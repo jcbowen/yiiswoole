@@ -24,7 +24,7 @@ class Server
     protected $onWebsocket;
 
     /** @var \Swoole\Table */
-    protected $contextTable;
+    public $contextTable;
 
     /**
      * @var array
