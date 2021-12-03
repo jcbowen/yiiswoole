@@ -193,7 +193,7 @@ class Server
 
         if ($this->onWebsocket) {
             if (method_exists($this->onWebsocket, 'onWorkerStart')) {
-                return call_user_func_array([$this->onWebsocket, 'onWorkerStart'], [$server, $workerId]);
+                return call_user_func_array([$this->onWebsocket, 'onWorkerStart'], [$server, $workerId, $this]);
             }
         }
 
@@ -226,7 +226,7 @@ class Server
         echo '进程已经停止' . PHP_EOL;
         if ($this->onWebsocket) {
             if (method_exists($this->onWebsocket, 'onWorkerStop')) {
-                return call_user_func_array([$this->onWebsocket, 'onWorkerStop'], [$server, $workerId]);
+                return call_user_func_array([$this->onWebsocket, 'onWorkerStop'], [$server, $workerId, $this]);
             }
         }
 
@@ -248,7 +248,7 @@ class Server
     {
         if ($this->onWebsocket) {
             if (method_exists($this->onWebsocket, 'onOpen')) {
-                return call_user_func_array([$this->onWebsocket, 'onOpen'], [$server, $request]);
+                return call_user_func_array([$this->onWebsocket, 'onOpen'], [$server, $request, $this]);
             }
         }
 
@@ -320,7 +320,7 @@ class Server
     {
         if ($this->onWebsocket) {
             if (method_exists($this->onWebsocket, 'onMessage')) {
-                return call_user_func_array([$this->onWebsocket, 'onMessage'], [$server, $frame]);
+                return call_user_func_array([$this->onWebsocket, 'onMessage'], [$server, $frame, $this]);
             }
         }
 
@@ -389,7 +389,7 @@ class Server
     {
         if ($this->onWebsocket) {
             if (method_exists($this->onWebsocket, 'onClose')) {
-                return call_user_func_array([$this->onWebsocket, 'onClose'], [$server, $fd]);
+                return call_user_func_array([$this->onWebsocket, 'onClose'], [$server, $fd, $this]);
             }
         }
 
