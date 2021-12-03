@@ -171,11 +171,12 @@ class Server
      *
      * @param \Swoole\Server $server
      * @param int|bool $workerId
+     * @return bool|mixed
      * @lasttime: 2021/5/21 10:13 上午
      * @author Bowen
      * @email bowen@jiuchet.com
      */
-    public function onWorkerStart($server, $workerId)
+    public function onWorkerStart(\Swoole\Server $server, $workerId)
     {
         Context::getBG($_B, $_GPC);
 
@@ -245,6 +246,12 @@ class Server
      */
     public function onOpen($server, $request)
     {
+        if ($this->onWebsocket) {
+            if (method_exists($this->onWebsocket, 'onOpen')) {
+                return call_user_func_array([$this->onWebsocket, 'onOpen'], [$server, $request]);
+            }
+        }
+
         Context::getBG($_B, $_GPC);
         echo 'server: handshake success!' . PHP_EOL;
 
@@ -271,7 +278,6 @@ class Server
             'version' => $version,
             'a'       => (string)$_GPC['a']
         ]);
-
 
         Context::putGlobal('fd_gpc_' . $request->fd, $_GPC);
         Context::putBG([
@@ -312,6 +318,12 @@ class Server
      */
     public function onMessage($server, $frame)
     {
+        if ($this->onWebsocket) {
+            if (method_exists($this->onWebsocket, 'onMessage')) {
+                return call_user_func_array([$this->onWebsocket, 'onMessage'], [$server, $frame]);
+            }
+        }
+
         Context::getBG($_B, $_GPC);
 
         $_B['WebSocket'] = [
@@ -375,6 +387,12 @@ class Server
      */
     public function onClose($server, $fd)
     {
+        if ($this->onWebsocket) {
+            if (method_exists($this->onWebsocket, 'onClose')) {
+                return call_user_func_array([$this->onWebsocket, 'onClose'], [$server, $fd]);
+            }
+        }
+
         Context::getBG($_B, $_GPC);
 
         echo "client-{$fd} is closed" . PHP_EOL;
