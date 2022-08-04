@@ -9,10 +9,14 @@
 
 namespace jcbowen\yiiswoole\websocket\console\components;
 
+use Swoole\Server\Port;
+use Swoole\Table;
 use Swoole\WebSocket\Server as WsServer;
 use Swoole\Process;
 use Yii;
+use yii\base\InvalidRouteException;
 use yii\console\Exception;
+use yii\console\Response;
 use yii\helpers\ArrayHelper;
 
 class Server
@@ -23,7 +27,7 @@ class Server
 
     protected $onWebsocket;
 
-    /** @var \Swoole\Table */
+    /** @var Table */
     public $contextTable;
 
     /**
@@ -52,8 +56,9 @@ class Server
      * Server constructor.
      * @param $serverConfig
      * @param $onWebsocket
+     * @param array $tablesConfig
      */
-    public function __construct($serverConfig, $onWebsocket = null, $tablesConfig = [])
+    public function __construct($serverConfig, $onWebsocket = null, array $tablesConfig = [])
     {
         $this->tablesConfig = $tablesConfig;
 
@@ -79,32 +84,32 @@ class Server
         }
 
         // 上下文缓存table
-        $this->contextTable = new \Swoole\Table(10240, 0.2);
-        $this->contextTable->column('fd', \Swoole\Table::TYPE_INT);
-        $this->contextTable->column('route', \Swoole\Table::TYPE_STRING, '240');
-        $this->contextTable->column('version', \Swoole\Table::TYPE_STRING, '32');
-        $this->contextTable->column('a', \Swoole\Table::TYPE_STRING, '240');
+        $this->contextTable = new Table(10240, 0.2);
+        $this->contextTable->column('fd', Table::TYPE_INT);
+        $this->contextTable->column('route', Table::TYPE_STRING, '240');
+        $this->contextTable->column('version', Table::TYPE_STRING, '32');
+        $this->contextTable->column('a', Table::TYPE_STRING, '240');
         $this->contextTable->create();
     }
 
     /**
      * 运行websocket服务
      *
-     * @return WsServer
      * @author Bowen
      * @email bowen@jiuchet.com
      * @lastTime 2021/4/25 1:13 下午
+     * @return WsServer
      */
     public function run(): WsServer
     {
         // 遍历创建Table
         if (!empty($this->tablesConfig) && is_array($this->tablesConfig)) {
-            foreach ((array)$this->tablesConfig as $ind => $tableConfig) {
+            foreach ($this->tablesConfig as $ind => $tableConfig) {
                 if (empty($tableConfig['column']) || !is_array($tableConfig['column'])) continue;
-                $tableSize = $tableConfig['size'] ?: 1024;
+                $tableSize           = $tableConfig['size'] ?: 1024;
                 $conflict_proportion = $tableConfig['conflict_proportion'] ?: 0.2;
-                /** @var \Swoole\Table */
-                $this->_tables[$ind] = new \Swoole\Table($tableSize, $conflict_proportion);
+                /** @var Table */
+                $this->_tables[$ind] = new Table($tableSize, $conflict_proportion);
 
                 foreach ($tableConfig['column'] as $column) {
                     $this->_tables[$ind]->column($column['name'], $column['type'], $column['size']);
@@ -121,11 +126,11 @@ class Server
                 $this->_ws = new WsServer($config['host'], $config['port'], $config['mode'], $config['socketType']);
                 $this->_ws->set($config['config']);
                 $this->pidFile = $config['config']['pid_file'];
-                $first = $k;
+                $first         = $k;
             } else {
                 // 其他的作为主服务的端口监听
                 /**
-                 * @var $ports \Swoole\Server\Port
+                 * @var $ports Port
                  */
                 $ports = $this->_ws->listen($config['host'], $config['port'], $config['socketType']);
                 unset($config['config']['pid_file']);
@@ -147,10 +152,10 @@ class Server
     /**
      * 结束服务
      *
-     * @return false
      * @author Bowen
      * @email bowen@jiuchet.com
      * @lastTime 2021/4/26 1:49 下午
+     * @return false
      */
     public function stop(): bool
     {
@@ -169,12 +174,12 @@ class Server
 
     /**
      *
-     * @param \Swoole\Server $server
-     * @param int|bool $workerId
-     * @return bool|mixed
-     * @lasttime: 2021/5/21 10:13 上午
      * @author Bowen
      * @email bowen@jiuchet.com
+     * @param int|bool $workerId
+     * @param \Swoole\Server $server
+     * @return bool|mixed
+     * @lasttime: 2021/5/21 10:13 上午
      */
     public function onWorkerStart(\Swoole\Server $server, $workerId)
     {
@@ -203,14 +208,14 @@ class Server
 
     /**
      *
-     * @param \Swoole\Server $server
-     * @param int|bool $workerId
-     * @return bool
-     * @lasttime: 2021/6/22 3:41 下午
      * @author Bowen
      * @email bowen@jiuchet.com
+     * @param int|bool $workerId
+     * @param \Swoole\Server $server
+     * @return bool
+     * @lasttime: 2021/6/22 3:41 下午
      */
-    public function onWorkerStop($server, $workerId)
+    public function onWorkerStop(\Swoole\Server $server, $workerId): bool
     {
         Context::getBG($_B, $_GPC);
 
@@ -236,13 +241,13 @@ class Server
     /**
      * 握手成功，开启连接
      *
-     * @param $server
-     * @param $request
-     * @return false|int|mixed|\yii\console\Response
-     * @throws \yii\base\InvalidRouteException
-     * @lasttime: 2021/5/21 10:14 上午
      * @author Bowen
      * @email bowen@jiuchet.com
+     * @param $request
+     * @param $server
+     * @return false|int|mixed|Response
+     * @throws InvalidRouteException
+     * @lasttime: 2021/5/21 10:14 上午
      */
     public function onOpen($server, $request)
     {
@@ -306,17 +311,17 @@ class Server
     /**
      * 监听消息
      *
-     * @param WsServer $server
-     * @param $frame
-     *
-     * @return false|int|mixed|\yii\console\Response
-     * @throws \yii\base\InvalidRouteException
      * @author Bowen
      * @email bowen@jiuchet.com
      * @lastTime 2021/4/25 1:00 下午
      *
+     * @param $frame
+     *
+     * @param WsServer $server
+     * @return false|int|mixed|Response
+     * @throws InvalidRouteException
      */
-    public function onMessage($server, $frame)
+    public function onMessage(WsServer $server, $frame)
     {
         if ($this->onWebsocket) {
             if (method_exists($this->onWebsocket, 'onMessage')) {
@@ -347,7 +352,7 @@ class Server
         } else {
             $_GPC = ArrayHelper::merge((array)Context::getGlobal('fd_gpc_' . $frame->fd), (array)$_GPC, $jsonData);
 
-            $route = $cacheRoute = $this->contextTable->get($frame->fd, 'route');
+            $route    = $cacheRoute = $this->contextTable->get($frame->fd, 'route');
             $gpcRoute = trim($_GPC['route']);
             if (!empty($gpcRoute)) $route = $gpcRoute;
 
@@ -377,13 +382,13 @@ class Server
     /**
      * 监听关闭
      *
-     * @param $server
-     * @param $fd
-     * @return false|int|mixed|\yii\console\Response
-     * @throws \yii\base\InvalidRouteException
-     * @lasttime: 2021/6/8 1:19 下午
      * @author Bowen
      * @email bowen@jiuchet.com
+     * @param $fd
+     * @param $server
+     * @return false|int|mixed|Response
+     * @throws InvalidRouteException
+     * @lasttime: 2021/6/8 1:19 下午
      */
     public function onClose($server, $fd)
     {
@@ -395,7 +400,7 @@ class Server
 
         Context::getBG($_B, $_GPC);
 
-        echo "client-{$fd} is closed" . PHP_EOL;
+        echo "client-$fd is closed" . PHP_EOL;
 
         $_B['WebSocket'] = [
             'fd'     => $fd,
@@ -431,10 +436,10 @@ class Server
     /**
      * 获取pid
      *
-     * @return false|string
-     * @lasttime: 2021/6/8 1:19 下午
      * @author Bowen
      * @email bowen@jiuchet.com
+     * @return false|string
+     * @lasttime: 2021/6/8 1:19 下午
      */
     public function getPid()
     {
