@@ -28,6 +28,12 @@ class WebSocketsController extends Controller
     public $onWebsocket;
 
     /**
+     * 标准的swoole4配置项都可以再此加入
+     * @var array
+     */
+    public $config = [];
+
+    /**
      * 监听多端口时，每个端口的配置信息
      * @var array
      */
@@ -66,7 +72,7 @@ class WebSocketsController extends Controller
                     $onWebsocket = new $this->onWebsocket();
                 }
             }
-            $this->server = new $this->serverClass($this->ports, $onWebsocket, $this->tables);
+            $this->server = new $this->serverClass($this->config, $this->ports, $onWebsocket, $this->tables);
         }
     }
 
@@ -79,8 +85,8 @@ class WebSocketsController extends Controller
         'daemonize'                => false, // 守护进程执行
         'ssl_cert_file'            => '',
         'ssl_key_file'             => '',
-        'pid_file'                 => __DIR__ . '/../runtime/log/websocket.pid',
-        'log_file'                 => __DIR__ . '/../runtime/log/websocket.log',
+        'pid_file'                 => '@runtime/log/websocket.pid',
+        'log_file'                 => '@runtime/log/websocket.log',
         'log_level'                => SWOOLE_LOG_DEBUG,
         'buffer_output_size'       => 2 * 1024 * 1024, //配置发送输出缓存区内存尺寸
         'heartbeat_check_interval' => 60,// 心跳检测秒数
@@ -99,7 +105,7 @@ class WebSocketsController extends Controller
      * @author Bowen
      * @email bowen@jiuchet.com
      */
-    private function initPorts(array $port = [])
+    private function initPorts(array $port = []): array
     {
         $port = ArrayHelper::merge([
             'host'       => '0.0.0.0',

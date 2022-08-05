@@ -2,7 +2,7 @@
 
 ### 介绍
 
-Yii2+Swoole4
+Yii2 + Swoole4
 
 目前实现了websocket服务器，同时支持了高性能共享内存Table的使用
 
@@ -33,65 +33,51 @@ composer require "jcbowen/yiiswoole"
 或者在 `composer.json` 加入
 
 ```
-"jcbowen/yiiswoole": "^2.0"
+"jcbowen/yiiswoole": "^3.0"
 ```
 
 ### 配置说明
 
 在`console/config/main.php`的controllerMap中加入配置
 
-（`SL_CONSOLE_RUNTIME`是我定义的runtime目录的常量，使用时记得替换掉）
-
-2.0.0之后的配置方法(示例的是同时支持ws和wss的配置，使用wss时注意配置cert证书的路径)
 ```
-'websockets' => [
+        'websockets' => [
             'class'       => 'jcbowen\yiiswoole\websocket\console\controllers\WebSocketsController',
             'serverClass' => 'jcbowen\yiiswoole\websocket\console\components\Server',
             'onWebsocket' => 'console\components\onWebsocket',
+            'config'      => [
+                'daemonize' => true,// 守护进程执行
+                // 'heartbeat_check_interval' => 30, // 启用心跳检测，默认为false
+                // 'heartbeat_idle_time'      => 30, // 连接最大允许空闲的时间，启用心跳检测的情况下，如未设置，默认未心跳检测的两倍
+                'pid_file'  => '@runtime/logs/websocket.pid',
+                'log_file'  => '@runtime/logs/websocket.log',
+                'log_level' => SWOOLE_LOG_ERROR,
+            ],
             'ports'       => [
                 // 第一个为websocket主服务
                 'ws'  => [
                     'host'   => '0.0.0.0',
                     'port'   => 9408,
                     'type'   => 'ws',
-                    'config' => [// 标准的swoole4配置项都可以再此加入
-                                 'daemonize'                => true,// 守护进程执行
-                                 'heartbeat_check_interval' => 60, // 启用心跳检测，默认为false
-                                 'heartbeat_idle_time'      => 60 * 2, // 连接最大允许空闲的时间，启用心跳检测的情况下，如未设置，默认未心跳检测的两倍
-                                 'pid_file'                 => SL_CONSOLE_RUNTIME . '/logs/websocket.pid',
-                                 'log_file'                 => SL_CONSOLE_RUNTIME . '/logs/websocket.log',
-                                 'log_level'                => SWOOLE_LOG_ERROR,
-                    ],
+                    'config' => [],
                 ],
                 'wss' => [
                     'host'   => '0.0.0.0',
                     'port'   => 9410,
                     'type'   => 'wss',
                     'config' => [// 标准的swoole4配置项都可以再此加入
-                                 'open_http_protocol'      => true,
-                                 'open_websocket_protocol' => true,
-                                 'ssl_cert_file'           => __DIR__ . '/cert/fullchain.pem',
-                                 'ssl_key_file'            => __DIR__ . '/cert/privkey.pem',
+                        'open_http_protocol'      => true,
+                        'open_websocket_protocol' => true,
+                        'ssl_cert_file'           => __DIR__ . '/cert/fullchain.pem',
+                        'ssl_key_file'            => __DIR__ . '/cert/privkey.pem',
                     ],
                 ]
             ],
-            'tables'      => [
-                'test_table' => [ // 具体配置参考Swoole\Table
-                    'size'                => 10000, // 指定表格的最大行数
-                    'conflict_proportion' => 0.2, // 哈希冲突的最大比例
-                    'column'              => [
-                        [
-                            'name' => 'fd',
-                            'type' => Swoole\Table::TYPE_INT,
-                        ]
-                    ]
-                ]
-            ],
+            'tables'      => [],
         ],
 ```
 
 ### 使用
-1.3.0及之后的版本
 ```
 # 启动 
 php yii websockets/start
@@ -109,51 +95,55 @@ php yii websockets/restart
 {"route": "site/test", "message": "这是一条来自websocket客户端的消息"}
 （如果握手的时候，携带了目录路径，可以不用再携带route参数；仍然携带的话，以携带的为准）
 ```
-##### 通过执行```\jcbowen\yiiswoole\websocket\console\components\Context::getBG($_B, $_GPC);```方法，可以读取上下文中缓存的信息；
-##### 其中server和frame会被缓存到```$_B```中；
-##### 接收到的json会被转为数组后缓存到```$_GPC```中；
+##### 通过执行```\jcbowen\yiiswoole\websocket\console\components\Context::get('_B');```方法，可以读取上下文中缓存的信息；
+##### 通过执行```\jcbowen\yiiswoole\websocket\console\components\Context::get('_GPC');```方法，可以读取上下文中缓存的get/post数据；
+##### 其中server和frame会被缓存到```_B```中；
+##### 接收到的json会被转为数组后缓存到```_GPC```中；
 ##### 携带的目录代表的是监听到动作后转发到哪个路由(由于通过console运行的进程，所以这里的路由指的是console里的路由)。
 ```
 // 这里展示onMessage的源码，用来理解实现原理
-public function onMessage($server, $frame)
+    public function onMessage(WsServer $server, $frame)
     {
-        Context::getBG($_B, $_GPC);
+        // 如果接管了onMessage，则不再执行
+        if ($this->onWebsocket) {
+            if (method_exists($this->onWebsocket, 'onMessage')) {
+                return call_user_func_array([$this->onWebsocket, 'onMessage'], [$server, $frame, $this]);
+            }
+        }
 
-        $_B['WebSocket'] = [
-            'server' => $server,
-            'frame'  => $frame,
-            'on'     => 'message',
-            'params' => [
-                'version' => $this->_cache[$frame->fd]['version']
-            ],
-            'tables' => $this->_tables // 创建好了的Swoole\Table会被放到这个数组中
-        ];
+        $_B   = Context::get('_B');
+        $_GPC = Context::get('_GPC');
+
+        if (empty($_B['WebSocket']['fd'])) return $server->push($frame->fd, "信息丢失，请重新连接");
+
+        // 修改上下文中的信息
+        $_B['WebSocket']['on']     = 'message';
+        $_B['WebSocket']['server'] = $server;
+        $_B['WebSocket']['frame']  = $frame;
 
         $jsonData = (array)@json_decode($frame->data, true);
 
         if (empty($jsonData)) {
             return $server->push($frame->fd, stripslashes(json_encode([
-                'code' => 200,
-                'msg'  => 'Heart Success'
+                'errcode' => 0,
+                'errmsg'  => 'Heart Success'
             ], JSON_UNESCAPED_UNICODE)));
         } else {
-            $_GPC = ArrayHelper::merge((array)$this->_gpc, (array)$_GPC, $jsonData);
+            $route = $cacheRoute = $_B['WebSocket']['params']['route'];
 
-            $route = $cacheRoute = $this->_cache[$frame->fd]['route'];
+            $_GPC = ArrayHelper::merge((array)$_GPC, $jsonData);
+
             $gpcRoute = trim($_GPC['route']);
-            if (!empty($gpcRoute)) $route = $gpcRoute;
+            $route    = $gpcRoute ?: $route;
 
-            Context::putBG([
-                '_GPC' => $_GPC,
-                '_B'   => $_B
-            ]);
+            Context::set('_B', $_B);
+            Context::set('_GPC', $_GPC);
 
             if (empty($route)) return $server->push($frame->fd, stripslashes(json_encode([
-                'code'  => 211,
-                'msg'   => 'Empty Route',
-                'cr'    => $cacheRoute,
-                'gr'    => $gpcRoute,
-                'cache' => $this->_cache
+                'errcode' => 211,
+                'errmsg'  => 'Empty Route',
+                'cr'      => $cacheRoute,
+                'gr'      => $gpcRoute,
             ], JSON_UNESCAPED_UNICODE)));
 
             try {
@@ -168,7 +158,7 @@ public function onMessage($server, $frame)
 
 ```
 
-##### 总结：jcbowen/yiiswoole插件会在websocket触发onmessage时，根据route调用对应的控制器方法，并将websocket服务和接收到数据分别存放到```$_B```与```$_GPC```变量中；
+##### 总结：jcbowen/yiiswoole插件会在websocket触发onmessage时，根据route调用对应的控制器方法，并将websocket服务和接收到数据分别存放到```_B```与```_GPC```中；
 
 ### 在控制器方法中使用
 ```
@@ -176,10 +166,11 @@ class SiteController extends Controller
 {    
     public function actionTest()
     {
-        Context::getBG($_B, $_GPC);
+        $_B = Context::get('_B');
+        $_GPC = Context::get('_GPC');
         
         // 可以根据$_B['WebSocket']['on']判断是通过什么方式转发过来的
-        // $_B['WebSocket']['on']的值有open/message/close
+        // $_B['WebSocket']['on']的值有start/stop/open/message/close
 
         /** @var \swoole\websocket\server $ws */
         $ws = $_B['WebSocket']['server'];
