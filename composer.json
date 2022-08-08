@@ -32,7 +32,7 @@
     "repositories": {
         "packagist": {
 			"type": "composer",
-			"url": "https://packagist.org"
+			"url": "https://mirrors.aliyun.com/composer/"
 		},
         "0": {
             "type": "composer",
@@ -42,5 +42,10 @@
             "type": "composer",
             "url": "https://packagist.phpcomposer.com"
         }
-    }
+    },
+	"config": {
+		"allow-plugins": {
+			"yiisoft/yii2-composer": true
+		}
+	}
 }
