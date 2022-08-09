@@ -1,51 +1,51 @@
 {
-	"name": "jcbowen/yiiswoole",
-	"description": "Yii websocket server component",
-	"keywords": [
-		"yii",
-		"yii2",
-		"swoole",
-		"websocket",
-		"php",
-		"jcbowen"
-	],
-	"type": "yii2-extension",
-	"license": "MIT",
-	"authors": [
-		{
-			"name": "Bowen",
-			"email": "bowen@jiuchet.com"
-		}
-	],
-	"minimum-stability": "dev",
-	"require": {
-		"php": ">=7.0",
-		"yiisoft/yii2": "*",
-		"ext-posix": "*",
-		"ext-json": "*"
-	},
-	"autoload": {
-		"psr-4": {
-			"jcbowen\\yiiswoole\\": "./src"
-		}
-	},
-    "repositories": {
-        "packagist": {
-			"type": "composer",
-			"url": "https://mirrors.aliyun.com/composer/"
-		},
-        "0": {
-            "type": "composer",
-            "url": "https://packagist.org"
-        },
-        "1": {
-            "type": "composer",
-            "url": "https://packagist.phpcomposer.com"
-        }
+  "name": "jcbowen/yiiswoole",
+  "description": "Yii websocket server component",
+  "keywords": [
+    "yii",
+    "yii2",
+    "swoole",
+    "websocket",
+    "php",
+    "jcbowen"
+  ],
+  "type": "yii2-extension",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Bowen",
+      "email": "bowen@jiuchet.com"
+    }
+  ],
+  "minimum-stability": "dev",
+  "require": {
+    "php": ">=7.0",
+    "yiisoft/yii2": "*",
+    "ext-posix": "*",
+    "ext-json": "*"
+  },
+  "autoload": {
+    "psr-4": {
+      "jcbowen\\yiiswoole\\": "./src"
+    }
+  },
+  "repositories": {
+    "packagist": {
+      "type": "composer",
+      "url": "https://mirrors.aliyun.com/composer/"
     },
-	"config": {
-		"allow-plugins": {
-			"yiisoft/yii2-composer": true
-		}
-	}
+    "0": {
+      "type": "composer",
+      "url": "https://packagist.org"
+    },
+    "1": {
+      "type": "composer",
+      "url": "https://packagist.phpcomposer.com"
+    }
+  },
+  "config": {
+    "allow-plugins": {
+      "yiisoft/yii2-composer": true
+    }
+  }
 }
