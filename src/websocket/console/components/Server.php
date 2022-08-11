@@ -2,6 +2,7 @@
 
 namespace jcbowen\yiiswoole\websocket\console\components;
 
+use jcbowen\yiiswoole\components\Context;
 use Swoole\Process;
 use Swoole\Server\Port;
 use Swoole\Table;

@@ -4,7 +4,7 @@
  * @descripton: 在 Context 类中，使用 Coroutine::getuid 获取了协程 ID，然后隔离不同协程之间的全局变量，协程退出时清理上下文数据。
  */
 
-namespace jcbowen\yiiswoole\websocket\console\components;
+namespace jcbowen\yiiswoole\components;
 
 use Swoole\Coroutine;
 
