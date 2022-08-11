@@ -41,36 +41,28 @@ composer require "jcbowen/yiiswoole"
 在`console/config/main.php`的controllerMap中加入配置
 
 ```
-        'websockets' => [
-            'class'       => 'jcbowen\yiiswoole\websocket\console\controllers\WebSocketsController',
+        'websocket' => [
+            'class'       => 'jcbowen\yiiswoole\websocket\console\controllers\WebSocketController',
             'serverClass' => 'jcbowen\yiiswoole\websocket\console\components\Server',
-            'onWebsocket' => 'console\components\onWebsocket',
+            'onWebsocket' => '', // 如果需要自行处理websocket服务的监听事件，可以在此处配置，如：console\components\onWebsocket
             'config'      => [
-                'daemonize' => true,// 守护进程执行
-                // 'heartbeat_check_interval' => 30, // 启用心跳检测，默认为false
-                // 'heartbeat_idle_time'      => 30, // 连接最大允许空闲的时间，启用心跳检测的情况下，如未设置，默认未心跳检测的两倍
-                'pid_file'  => '@runtime/logs/websocket.pid',
-                'log_file'  => '@runtime/logs/websocket.log',
-                'log_level' => SWOOLE_LOG_ERROR,
+                'daemonize'                => true,// 守护进程执行
+                'heartbeat_check_interval' => 60, // 启用心跳检测，默认为false
+                'heartbeat_idle_time'      => 120, // 连接最大允许空闲的时间，启用心跳检测的情况下，如未设置，默认未心跳检测的两倍
+                'pid_file'                 => '@runtime/logs/websocket.pid',
+                'log_file'                 => '@runtime/logs/websocket.log',
+                'log_level'                => SWOOLE_LOG_ERROR,
+                'buffer_output_size'       => 2 * 1024 * 1024, //配置发送输出缓存区内存尺寸
+                'worker_num'               => 1,
+                'max_wait_time'            => 60,
+                'reload_async'             => true,
             ],
             'ports'       => [
                 // 第一个为websocket主服务
-                'ws'  => [
-                    'host'   => '0.0.0.0',
-                    'port'   => 9408,
-                    'type'   => 'ws',
-                    'config' => [],
-                ],
-                'wss' => [
-                    'host'   => '0.0.0.0',
-                    'port'   => 9410,
-                    'type'   => 'wss',
-                    'config' => [// 标准的swoole4配置项都可以再此加入
-                        'open_http_protocol'      => true,
-                        'open_websocket_protocol' => true,
-                        'ssl_cert_file'           => __DIR__ . '/cert/fullchain.pem',
-                        'ssl_key_file'            => __DIR__ . '/cert/privkey.pem',
-                    ],
+                'ws' => [
+                    'host' => '0.0.0.0',
+                    'port' => 9408,
+                    'type' => 'ws', // 长连接方式 默认值：'ws' 其它值：'ws' 'wss'
                 ]
             ],
             'tables'      => [],

@@ -14,7 +14,7 @@ use jcbowen\yiiswoole\websocket\console\components\Server;
 use yii\console\Controller;
 use yii\helpers\ArrayHelper;
 
-class WebSocketsController extends Controller
+class WebSocketController extends Controller
 {
     /**
      * @var string Server
