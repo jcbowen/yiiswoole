@@ -257,10 +257,8 @@ class Server
         echo '进程已经停止' . PHP_EOL;
 
         // 如果接管了onWorkerStop，则执行
-        if ($this->onWebsocket) {
-            if (method_exists($this->onWebsocket, 'onWorkerStop')) {
-                return call_user_func_array([$this->onWebsocket, 'onWorkerStop'], [$server, $workerId, $this]);
-            }
+        if (!empty($this->onWebsocket) && method_exists($this->onWebsocket, 'onWorkerStop')) {
+            return call_user_func_array([$this->onWebsocket, 'onWorkerStop'], [$server, $workerId, $this]);
         }
 
         Context::delGlobal('WebSocket');
