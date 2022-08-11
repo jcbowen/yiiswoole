@@ -82,28 +82,17 @@ class WebSocketsController extends Controller
      * @var array
      */
     private $_config = [
-        'daemonize'                => false, // 守护进程执行
-        'ssl_cert_file'            => '',
-        'ssl_key_file'             => '',
-        'pid_file'                 => '@runtime/log/websocket.pid',
-        'log_file'                 => '@runtime/log/websocket.log',
-        'log_level'                => SWOOLE_LOG_DEBUG,
-        'buffer_output_size'       => 2 * 1024 * 1024, //配置发送输出缓存区内存尺寸
-        'heartbeat_check_interval' => 60,// 心跳检测秒数
-        'heartbeat_idle_time'      => 600,// 检查最近一次发送数据的时间和当前时间的差，大于则强行关闭
-        'worker_num'               => 1,
-        'max_wait_time'            => 60,
-        'reload_async'             => true,
+        'type'                     => 'ws',
     ];
 
     /**
      * 初始化配置信息
      *
+     * @author Bowen
+     * @email bowen@jiuchet.com
      * @param array $port
      * @return array
      * @lasttime: 2021/6/8 1:17 下午
-     * @author Bowen
-     * @email bowen@jiuchet.com
      */
     private function initPorts(array $port = []): array
     {
@@ -124,7 +113,7 @@ class WebSocketsController extends Controller
             $port['socketType'] = SWOOLE_SOCK_TCP | SWOOLE_SSL;
         }
 
-        $port['config'] = ArrayHelper::merge($this->_config, $port['config']);
+        $port = ArrayHelper::merge($this->_config, $port);
 
         return $port;
     }
@@ -132,12 +121,12 @@ class WebSocketsController extends Controller
     /**
      * 启动服务
      *
-     * @return mixed
      * @author Bowen
      * @email bowen@jiuchet.com
      * @lastTime 2021/4/26 1:44 下午
      *
      *
+     * @return mixed
      */
     public function actionStart()
     {

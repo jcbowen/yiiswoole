@@ -58,14 +58,13 @@ class Server
 
     /**
      * Server constructor.
-     * @param $serverConfig
-     * @param $serverPorts
+     * @param array $serverConfig 通用配置
+     * @param array $serverPorts 多端口配置
      * @param $onWebsocket
      * @param array $tablesConfig
      */
-    public function __construct($serverConfig, $serverPorts, $onWebsocket = null, array $tablesConfig = [])
+    public function __construct(array $serverConfig, array $serverPorts, $onWebsocket = null, array $tablesConfig = [])
     {
-
         $this->serverConfig = $serverConfig;
 
         $this->serverPorts = $serverPorts;
@@ -117,15 +116,26 @@ class Server
         }
 
         static $first = '';
-
-        foreach ($this->serverConfig as $k => $config) {
+        foreach ($this->serverPorts as $k => $port) {
             // 将第一个作为主服务
             if (empty($first)) {
-                $this->_ws = new WsServer($config['host'], $config['port'], $config['mode'], $config['socketType']);
+                $this->_ws = new WsServer($port['host'], $port['port'], $port['mode'], $port['socketType']);
 
                 // 将全局配置信息与第一个端口配置信息合并，并生效
-                $config = ArrayHelper::merge($this->serverConfig, $config['config']);
-                $this->_ws->set($config['config']);
+                $portConfig = ArrayHelper::merge($this->serverConfig, $port);
+
+                if ($portConfig['type'] === 'ws') {
+                    unset($portConfig['ssl_cert_file'], $portConfig['ssl_key_file']);
+                }
+
+                // 将配置中的地址为swoole能理解的绝对地址
+                if (!empty($portConfig['pid_file'])) $portConfig['pid_file'] = Yii::getAlias($portConfig['pid_file']);
+                if (!empty($portConfig['log_file'])) $portConfig['log_file'] = Yii::getAlias($portConfig['log_file']);
+
+                // 移除不需要的配置项及非swoole的自定义配置项
+                unset($portConfig['host'], $portConfig['port'], $portConfig['mode'], $portConfig['socketType'], $portConfig['type']);
+
+                $this->_ws->set($portConfig);
 
                 $first = $k;
             } else {
@@ -133,23 +143,31 @@ class Server
                 /**
                  * @var $ports Port
                  */
-                $ports = $this->_ws->listen($config['host'], $config['port'], $config['socketType']);
+                $ports = $this->_ws->listen($port['host'], $port['port'], $port['socketType']);
 
-                // 过滤掉全局配置，避免设置不生效
-                unset($config['config']['daemonize']);
-                unset($config['config']['pid_file']);
-                unset($config['config']['log_file']);
-                unset($config['config']['log_level']);
-                unset($config['config']['buffer_output_size']);
-                unset($config['config']['heartbeat_check_interval']);
-                unset($config['config']['heartbeat_idle_time']);
-                unset($config['config']['worker_num']);
-                unset($config['config']['max_wait_time']);
-                unset($config['config']['reload_async']);
+                // 移除不需要的配置，避免全局配置被替换
+                unset(
+                    $port['host'],
+                    $port['port'],
+                    $port['mode'],
+                    $port['socketType'],
+                    $port['type'],
 
-                $ports->set($config['config']);
+                    $port['daemonize'],
+                    $port['pid_file'],
+                    $port['log_file'],
+                    $port['log_level'],
+                    $port['buffer_output_size'],
+                    $port['heartbeat_check_interval'],
+                    $port['heartbeat_idle_time'],
+                    $port['worker_num'],
+                    $port['max_wait_time'],
+                    $port['reload_async']
+                );
+
+                $ports->set($port);
             }
-            $this->ports[$k] = "{$config['host']}:{$config['port']}";
+            $this->ports[$k] = "{$port['host']}:{$port['port']}";
         }
 
         $this->_ws->on('WorkerStart', [$this, 'onWorkerStart']);
@@ -191,12 +209,12 @@ class Server
      * @author Bowen
      * @email bowen@jiuchet.com
      *
-     * @param \Swoole\Server $server
+     * @param WsServer $server
      * @param int|bool $workerId
      * @return bool|mixed
      * @lasttime: 2022/8/5 2:54 PM
      */
-    public function onWorkerStart(\Swoole\Server $server, $workerId)
+    public function onWorkerStart(WsServer $server, $workerId)
     {
 
         echo("服务开始运行, 监听" . json_encode($this->ports) . PHP_EOL);
@@ -222,12 +240,12 @@ class Server
      * @author Bowen
      * @email bowen@jiuchet.com
      *
-     * @param \Swoole\Server $server
+     * @param $server
      * @param int|bool $workerId
      * @return bool
      * @lasttime: 2022/8/5 2:43 PM
      */
-    public function onWorkerStop(\Swoole\Server $server, $workerId): bool
+    public function onWorkerStop($server, $workerId): bool
     {
         $global = Context::getGlobal('WebSocket');
 
