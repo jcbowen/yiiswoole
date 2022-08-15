@@ -3,6 +3,7 @@
 namespace jcbowen\yiiswoole\websocket\console\components;
 
 use jcbowen\yiiswoole\components\Context;
+use jcbowen\yiiswoole\components\Util;
 use Swoole\Process;
 use Swoole\Server\Port;
 use Swoole\Table;
@@ -125,13 +126,12 @@ class Server
                 // 将全局配置信息与第一个端口配置信息合并，并生效
                 $portConfig = ArrayHelper::merge($this->serverConfig, $port);
 
+                // 将配置中的地址为swoole能理解的绝对地址
+                Util::translateArrayFilePath($portConfig);
+
                 if (empty($portConfig['cert'])) {
                     unset($portConfig['ssl_cert_file'], $portConfig['ssl_key_file']);
                 }
-
-                // 将配置中的地址为swoole能理解的绝对地址
-                if (!empty($portConfig['pid_file'])) $portConfig['pid_file'] = Yii::getAlias($portConfig['pid_file']);
-                if (!empty($portConfig['log_file'])) $portConfig['log_file'] = Yii::getAlias($portConfig['log_file']);
 
                 // 移除不需要的配置项及非swoole的自定义配置项
                 unset($portConfig['host'], $portConfig['port'], $portConfig['mode'], $portConfig['socketType'], $portConfig['cert']);
