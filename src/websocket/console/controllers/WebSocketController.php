@@ -82,7 +82,7 @@ class WebSocketController extends Controller
      * @var array
      */
     private $_config = [
-        'type'                     => 'ws',
+        'cert' => false,
     ];
 
     /**
@@ -103,19 +103,17 @@ class WebSocketController extends Controller
             'mode'       => SWOOLE_PROCESS,
             // 功能：指定这组 Server 的类型 默认值：SWOOLE_SOCK_TCP 其它值：SWOOLE_TCP/SWOOLE_SOCK_TCP tcp ipv4 socket; SWOOLE_TCP6/SWOOLE_SOCK_TCP6 tcp ipv6 socket; SWOOLE_UDP/SWOOLE_SOCK_UDP udp ipv4 socket; SWOOLE_UDP6/SWOOLE_SOCK_UDP6 udp ipv6 socket; SWOOLE_UNIX_DGRAM unix socket dgram; SWOOLE_UNIX_STREAM unix socket stream
             'socketType' => SWOOLE_SOCK_TCP,
-            // 长连接方式 默认值：'ws' 其它值：'ws' 'wss'
-            'type'       => 'ws',
+            // 证书类型 默认值：false 其它值：'ssl'
+            'cert'       => false,
         ], $port);
 
         $port['port'] = intval($port['port']);
 
-        if ($port['type'] == 'wss') {
+        if ($port['cert'] == 'ssl') {
             $port['socketType'] = SWOOLE_SOCK_TCP | SWOOLE_SSL;
         }
 
-        $port = ArrayHelper::merge($this->_config, $port);
-
-        return $port;
+        return ArrayHelper::merge($this->_config, $port);
     }
 
     /**

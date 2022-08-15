@@ -125,7 +125,7 @@ class Server
                 // 将全局配置信息与第一个端口配置信息合并，并生效
                 $portConfig = ArrayHelper::merge($this->serverConfig, $port);
 
-                if ($portConfig['type'] === 'ws') {
+                if (empty($portConfig['cert'])) {
                     unset($portConfig['ssl_cert_file'], $portConfig['ssl_key_file']);
                 }
 

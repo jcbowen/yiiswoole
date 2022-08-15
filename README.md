@@ -62,7 +62,7 @@ composer require "jcbowen/yiiswoole"
                 'ws' => [
                     'host' => '0.0.0.0',
                     'port' => 9408,
-                    'type' => 'ws', // 长连接方式 默认值：'ws' 其它值：'ws' 'wss'
+                    'cert' => false, // 证书类型 默认值：false 其它值：'ssl'
                 ]
             ],
             'tables'      => [],
@@ -72,11 +72,11 @@ composer require "jcbowen/yiiswoole"
 ### 使用
 ```
 # 启动 
-php yii websockets/start
+php yii websocket/start
 # 停止 
-php yii websockets/stop
+php yii websocket/stop
 # 重启 
-php yii websockets/restart
+php yii websocket/restart
 ```
 
 ### 运行说明
@@ -85,10 +85,10 @@ php yii websockets/restart
 
 ```
 {"route": "site/test", "message": "这是一条来自websocket客户端的消息"}
-（如果握手的时候，携带了目录路径，可以不用再携带route参数；仍然携带的话，以携带的为准）
+（如果握手的时候，携带了目录路径，该路径将会作为route缓存起来；请求中如果携带了route字段，则替换缓存中的route）
 ```
-##### 通过执行```\jcbowen\yiiswoole\websocket\console\components\Context::get('_B');```方法，可以读取上下文中缓存的信息；
-##### 通过执行```\jcbowen\yiiswoole\websocket\console\components\Context::get('_GPC');```方法，可以读取上下文中缓存的get/post数据；
+##### 通过执行```\jcbowen\yiiswoole\components\Context::get('_B');```方法，可以读取上下文中缓存的信息；
+##### 通过执行```\jcbowen\yiiswoole\components\Context::get('_GPC');```方法，可以读取上下文中缓存的get/post数据；
 ##### 其中server和frame会被缓存到```_B```中；
 ##### 接收到的json会被转为数组后缓存到```_GPC```中；
 ##### 携带的目录代表的是监听到动作后转发到哪个路由(由于通过console运行的进程，所以这里的路由指的是console里的路由)。
