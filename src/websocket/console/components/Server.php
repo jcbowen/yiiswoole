@@ -134,7 +134,7 @@ class Server
                 if (!empty($portConfig['log_file'])) $portConfig['log_file'] = Yii::getAlias($portConfig['log_file']);
 
                 // 移除不需要的配置项及非swoole的自定义配置项
-                unset($portConfig['host'], $portConfig['port'], $portConfig['mode'], $portConfig['socketType'], $portConfig['type']);
+                unset($portConfig['host'], $portConfig['port'], $portConfig['mode'], $portConfig['socketType'], $portConfig['cert']);
 
                 $this->_ws->set($portConfig);
 
@@ -152,7 +152,7 @@ class Server
                     $port['port'],
                     $port['mode'],
                     $port['socketType'],
-                    $port['type'],
+                    $port['cert'],
 
                     $port['daemonize'],
                     $port['pid_file'],
@@ -166,7 +166,7 @@ class Server
                     $port['reload_async']
                 );
 
-                $ports->set($port);
+                if (!empty($port)) $ports->set($port);
             }
             $this->ports[$k] = "{$port['host']}:{$port['port']}";
         }
