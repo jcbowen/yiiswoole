@@ -281,14 +281,8 @@ class Server
      */
     public function onOpen($server, $request)
     {
-        // 如果接管了onOpen，则不再执行
-        if ($this->onWebsocket) {
-            if (method_exists($this->onWebsocket, 'onOpen')) {
-                return call_user_func_array([$this->onWebsocket, 'onOpen'], [$server, $request, $this]);
-            }
-        }
-
-        echo 'server: handshake success!' . PHP_EOL;
+        echo 'client-fd: ' . $request->fd . PHP_EOL;
+        echo 'msg: handshake success!' . PHP_EOL . PHP_EOL;
 
         $_GPC      = ArrayHelper::merge((array)$request->get, (array)$request->post);
         $_GPC['a'] = (string)$_GPC['a'];
@@ -311,6 +305,13 @@ class Server
 
         Context::set('_B', $_B);
         Context::set('_GPC', $_GPC);
+
+        // 如果接管了onOpen，则不再执行
+        if ($this->onWebsocket) {
+            if (method_exists($this->onWebsocket, 'onOpen')) {
+                return call_user_func_array([$this->onWebsocket, 'onOpen'], [$server, $request, $this]);
+            }
+        }
 
         // 有route的情况才执行
         if (!empty($route) && $route !== '/') {
@@ -344,31 +345,28 @@ class Server
      */
     public function onMessage(WsServer $server, $frame)
     {
-        // 如果接管了onMessage，则不再执行
-        if ($this->onWebsocket) {
-            if (method_exists($this->onWebsocket, 'onMessage')) {
-                return call_user_func_array([$this->onWebsocket, 'onMessage'], [$server, $frame, $this]);
-            }
-        }
-
         $_B   = Context::get('_B');
         $_GPC = Context::get('_GPC');
 
-        if (empty($_B['WebSocket']['fd'])) return $server->push($frame->fd, "信息丢失，请重新连接");
+        if (empty($_B['WebSocket']['fd'])) return $server->push($frame->fd, stripslashes(json_encode([
+            'errcode' => 1,
+            'errmsg'  => 'connect info lost',
+        ], JSON_UNESCAPED_UNICODE)));
 
         // 修改上下文中的信息
         $_B['WebSocket']['on']     = 'message';
         $_B['WebSocket']['server'] = $server;
         $_B['WebSocket']['frame']  = $frame;
 
-        $jsonData = (array)@json_decode($frame->data, true);
+        $jsonData = Util::isJson($frame->data) ? (array)@json_decode($frame->data, true) : $frame->data;
 
-        if (empty($jsonData)) {
-            return $server->push($frame->fd, stripslashes(json_encode([
-                'errcode' => 0,
-                'errmsg'  => 'Heart Success'
-            ], JSON_UNESCAPED_UNICODE)));
-        } else {
+        // 空数据为触发心跳
+        if (empty($jsonData)) return $server->push($frame->fd, stripslashes(json_encode([
+            'errcode' => 0,
+            'errmsg'  => 'Heart Success'
+        ], JSON_UNESCAPED_UNICODE)));
+
+        if (is_array($jsonData)) {
             $route = $cacheRoute = $_B['WebSocket']['params']['route'];
 
             $_GPC = ArrayHelper::merge((array)$_GPC, $jsonData);
@@ -376,16 +374,26 @@ class Server
             $gpcRoute = trim($_GPC['route']);
             $route    = $gpcRoute ?: $route;
 
-            Context::set('_B', $_B);
-            Context::set('_GPC', $_GPC);
-
             if (empty($route)) return $server->push($frame->fd, stripslashes(json_encode([
-                'errcode' => 211,
+                'errcode' => 9002010,
                 'errmsg'  => 'Empty Route',
                 'cr'      => $cacheRoute,
                 'gr'      => $gpcRoute,
             ], JSON_UNESCAPED_UNICODE)));
 
+            $_B['WebSocket']['params']['route'] = $route;
+
+            Context::set('_B', $_B);
+            Context::set('_GPC', $_GPC);
+
+            // 如果接管了onMessage，则不再执行
+            if ($this->onWebsocket) {
+                if (method_exists($this->onWebsocket, 'onMessage')) {
+                    return call_user_func_array([$this->onWebsocket, 'onMessage'], [$server, $frame, $this]);
+                }
+            }
+
+            // 根据json数据中的路由转发到控制器内进行处理
             try {
                 return Yii::$app->runAction($route);
             } catch (Exception $e) {
@@ -393,6 +401,19 @@ class Server
                 echo($e->getMessage());
                 return false;
             }
+        } else {
+            // 如果接管了onMessage，则不再执行
+            if ($this->onWebsocket) {
+                if (method_exists($this->onWebsocket, 'onMessage')) {
+                    return call_user_func_array([$this->onWebsocket, 'onMessage'], [$server, $frame, $this]);
+                }
+            }
+
+            // 数据格式错误
+            return $server->push($frame->fd, stripslashes(json_encode([
+                'errcode' => 9002015,
+                'errmsg'  => 'Data Format Error',
+            ], JSON_UNESCAPED_UNICODE)));
         }
     }
 
@@ -410,12 +431,6 @@ class Server
      */
     public function onClose($server, $fd)
     {
-        if ($this->onWebsocket) {
-            if (method_exists($this->onWebsocket, 'onClose')) {
-                return call_user_func_array([$this->onWebsocket, 'onClose'], [$server, $fd, $this]);
-            }
-        }
-
         $_B = Context::get('_B');
 
         echo "client-$fd is closed" . PHP_EOL;
@@ -424,10 +439,15 @@ class Server
         $_B['WebSocket']['frame']  = [];
         $_B['WebSocket']['on']     = 'close';
 
-        $route = $_B['WebSocket']['params']['route'];
-
         Context::set('_B', $_B);
 
+        if ($this->onWebsocket) {
+            if (method_exists($this->onWebsocket, 'onClose')) {
+                return call_user_func_array([$this->onWebsocket, 'onClose'], [$server, $fd, $this]);
+            }
+        }
+
+        $route = $_B['WebSocket']['params']['route'];
         if (!empty($route) && $route != '/') {
             try {
                 return Yii::$app->runAction($route);
