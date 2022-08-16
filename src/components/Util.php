@@ -66,4 +66,19 @@ class Util
         }
         return $config;
     }
+
+    /**
+     *
+     * @author Bowen
+     * @email bowen@jiuchet.com
+     *
+     * @param $string
+     * @return bool
+     * @lasttime: 2022/8/16 1:19 PM
+     */
+    public static function isJson($string): bool
+    {
+        $json = @json_decode($string, true);
+        return $json && (json_last_error() == JSON_ERROR_NONE);
+    }
 }
