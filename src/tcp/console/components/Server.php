@@ -3,10 +3,11 @@
 namespace jcbowen\yiiswoole\tcp\console\components;
 
 use jcbowen\yiiswoole\components\Context;
+use jcbowen\yiiswoole\components\Util;
 use Swoole\Process;
 use Swoole\Server\Port;
 use Swoole\Table;
-use Swoole\WebSocket\Server as WsServer;
+use Swoole\Server as SwServer;
 use Yii;
 use yii\base\InvalidRouteException;
 use yii\console\Exception;
@@ -14,12 +15,12 @@ use yii\console\Response;
 use yii\helpers\ArrayHelper;
 
 /**
- * websocket server
+ * TCP Server
  *
  * @author Bowen
  * @email bowen@jiuchet.com
- * @lasttime: 2022/8/5 9:09 AM
- * @package jcbowen\yiiswoole\websocket\console\components
+ * @lasttime: 2022/8/15 2:15 PM
+ * @package jcbowen\yiiswoole\tcp\console\components
  */
 class Server
 {
@@ -29,7 +30,7 @@ class Server
     /** @descripton 需要监听的端口 */
     protected $serverPorts;
 
-    /** @descripton 替换websocket的回调 */
+    /** @descripton 替换server的监听回调 */
     protected $onServer;
 
     /** @descripton 需要创建的内存级table */
@@ -41,9 +42,10 @@ class Server
     public $_tables = [];
 
     /**
-     * @var WsServer
+     * 主服务
+     * @var SwServer
      */
-    public $_ws = [];
+    public $_ms = [];
 
     /**
      * pid 文件所在位置
@@ -90,15 +92,15 @@ class Server
     }
 
     /**
-     * 运行websocket服务
+     * 运行服务
      *
      * @author Bowen
      * @email bowen@jiuchet.com
      *
-     * @return WsServer
+     * @return SwServer
      * @lasttime: 2022/8/5 2:55 PM
      */
-    public function run(): WsServer
+    public function run(): SwServer
     {
         // 根据配置文件创建内存共享table
         if (!empty($this->tablesConfig) && is_array($this->tablesConfig)) {
@@ -120,23 +122,22 @@ class Server
         foreach ($this->serverPorts as $k => $port) {
             // 将第一个作为主服务
             if (empty($first)) {
-                $this->_ws = new WsServer($port['host'], $port['port'], $port['mode'], $port['socketType']);
+                $this->_ms = new SwServer($port['host'], $port['port'], $port['mode'], $port['socketType']);
 
                 // 将全局配置信息与第一个端口配置信息合并，并生效
                 $portConfig = ArrayHelper::merge($this->serverConfig, $port);
 
-                if ($portConfig['type'] === 'ws') {
+                // 将配置中的地址为swoole能理解的绝对地址
+                Util::translateArrayFilePath($portConfig);
+
+                if (empty($portConfig['cert'])) {
                     unset($portConfig['ssl_cert_file'], $portConfig['ssl_key_file']);
                 }
 
-                // 将配置中的地址为swoole能理解的绝对地址
-                if (!empty($portConfig['pid_file'])) $portConfig['pid_file'] = Yii::getAlias($portConfig['pid_file']);
-                if (!empty($portConfig['log_file'])) $portConfig['log_file'] = Yii::getAlias($portConfig['log_file']);
-
                 // 移除不需要的配置项及非swoole的自定义配置项
-                unset($portConfig['host'], $portConfig['port'], $portConfig['mode'], $portConfig['socketType'], $portConfig['type']);
+                unset($portConfig['host'], $portConfig['port'], $portConfig['mode'], $portConfig['socketType'], $portConfig['cert']);
 
-                $this->_ws->set($portConfig);
+                $this->_ms->set($portConfig);
 
                 $first = $k;
             } else {
@@ -144,7 +145,7 @@ class Server
                 /**
                  * @var $ports Port
                  */
-                $ports = $this->_ws->listen($port['host'], $port['port'], $port['socketType']);
+                $ports = $this->_ms->listen($port['host'], $port['port'], $port['socketType']);
 
                 // 移除不需要的配置，避免全局配置被替换
                 unset(
@@ -152,7 +153,7 @@ class Server
                     $port['port'],
                     $port['mode'],
                     $port['socketType'],
-                    $port['type'],
+                    $port['cert'],
 
                     $port['daemonize'],
                     $port['pid_file'],
@@ -166,19 +167,19 @@ class Server
                     $port['reload_async']
                 );
 
-                $ports->set($port);
+                if (!empty($port)) $ports->set($port);
             }
             $this->ports[$k] = "{$port['host']}:{$port['port']}";
         }
 
-        $this->_ws->on('WorkerStart', [$this, 'onWorkerStart']);
-        $this->_ws->on('WorkerStop', [$this, 'onWorkerStop']);
-        $this->_ws->on('Open', [$this, 'onOpen']);
-        $this->_ws->on('Message', [$this, 'onMessage']);
-        $this->_ws->on('Close', [$this, 'onClose']);
-        $this->_ws->start();
+        $this->_ms->on('WorkerStart', [$this, 'onWorkerStart']);
+        $this->_ms->on('WorkerStop', [$this, 'onWorkerStop']);
+        $this->_ms->on('Connect', [$this, 'onConnect']);
+        $this->_ms->on('Receive', [$this, 'onReceive']);
+        $this->_ms->on('Close', [$this, 'onClose']);
+        $this->_ms->start();
 
-        return $this->_ws;
+        return $this->_ms;
     }
 
     /**
@@ -193,7 +194,7 @@ class Server
     public function stop(): bool
     {
         if ($pid = $this->getPid()) {
-            if ($this->onWorkerStop($this->_ws, false)) {
+            if ($this->onWorkerStop($this->_ms, false)) {
                 return Process::kill($pid, SIGTERM);
             } else {
                 echo '结束服务被终止' . PHP_EOL;
@@ -210,17 +211,17 @@ class Server
      * @author Bowen
      * @email bowen@jiuchet.com
      *
-     * @param WsServer $server
+     * @param SwServer $server
      * @param int|bool $workerId
      * @return bool|mixed
      * @lasttime: 2022/8/5 2:54 PM
      */
-    public function onWorkerStart(WsServer $server, $workerId)
+    public function onWorkerStart(SwServer $server, $workerId)
     {
 
         echo("服务开始运行, 监听" . json_encode($this->ports) . PHP_EOL);
 
-        Context::setGlobal('WebSocket', [
+        Context::setGlobal('TCP', [
             'server'   => $server,
             'workerId' => $workerId,
             'on'       => 'start',
@@ -248,12 +249,12 @@ class Server
      */
     public function onWorkerStop($server, $workerId): bool
     {
-        $global = Context::getGlobal('WebSocket');
+        $global = Context::getGlobal('TCP');
 
         $global['server'] = $server;
         $global['on']     = 'stop';
 
-        Context::setGlobal('WebSocket', $global);
+        Context::setGlobal('TCP', $global);
 
         echo '进程已经停止' . PHP_EOL;
 
@@ -262,130 +263,115 @@ class Server
             return call_user_func_array([$this->onServer, 'onWorkerStop'], [$server, $workerId, $this]);
         }
 
-        Context::delGlobal('WebSocket');
+        Context::delGlobal('TCP');
 
         return true;
     }
 
     /**
-     * 握手成功，开启连接
+     * 有新的连接进入时，在 worker 进程中回调。
      *
      * @author Bowen
      * @email bowen@jiuchet.com
      *
-     * @param $server
-     * @param $request
-     * @return false|int|mixed|Response
-     * @throws InvalidRouteException
-     * @lasttime: 2022/8/5 2:52 PM
+     * @param SwServer $server
+     * @param int $fd
+     * @param int $reactorId
+     * @return mixed|void
+     * @lasttime: 2022/8/15 2:58 PM
      */
-    public function onOpen($server, $request)
+    public function onConnect(SwServer $server, int $fd, int $reactorId)
     {
-        // 如果接管了onOpen，则不再执行
-        if ($this->onServer) {
-            if (method_exists($this->onServer, 'onOpen')) {
-                return call_user_func_array([$this->onServer, 'onOpen'], [$server, $request, $this]);
-            }
-        }
-
-        echo 'server: handshake success!' . PHP_EOL;
-
-        $_GPC      = ArrayHelper::merge((array)$request->get, (array)$request->post);
-        $_GPC['a'] = (string)$_GPC['a'];
-
-        $version = trim($_GPC['v']);
-        $route   = $request->server['path_info'];
+        echo 'server: Connect Success!' . PHP_EOL;
 
         $_B     = (array)Context::get('_B');
-        $global = (array)Context::getGlobal('WebSocket');
+        $global = (array)Context::getGlobal('TCP');
 
-        $_B['WebSocket']['fd']     = $request->fd;
-        $_B['WebSocket']['server'] = $server;
-        $_B['WebSocket']['frame']  = $request;
-        $_B['WebSocket']['on']     = 'open';
-        $_B['WebSocket']['params'] = [
-            'route'   => $route,
-            'version' => $version,
-        ];
-        $_B['WebSocket']['global'] = $global;
+        $_B['TCP']['fd']     = $fd;
+        $_B['TCP']['server'] = $server;
+        $_B['TCP']['on']     = 'connect';
+        $_B['TCP']['global'] = $global;
 
         Context::set('_B', $_B);
-        Context::set('_GPC', $_GPC);
 
-        // 有route的情况才执行
-        if (!empty($route) && $route !== '/') {
-            try {
-                return Yii::$app->runAction($route);
-            } catch (Exception $e) {
-                Yii::info($e);
-                echo($e->getMessage());
-                return false;
+        // 如果接管了onConnect，则不再执行后续操作
+        if ($this->onServer) {
+            if (method_exists($this->onServer, 'onConnect')) {
+                return call_user_func_array([$this->onServer, 'onConnect'], [$server, $fd, $reactorId]);
             }
         }
 
-        return $server->push($request->fd, stripslashes(json_encode([
-            'errcode' => 200,
-            'errmsg'  => 'handshake success',
-            'route'   => $route
+        return $server->send($fd, stripslashes(json_encode([
+            'errcode' => 0,
+            'errmsg'  => 'connect success',
         ], JSON_UNESCAPED_UNICODE)));
     }
 
     /**
-     * 监听消息
+     * 接收到数据时回调此函数，发生在 worker 进程中。
      *
      * @author Bowen
      * @email bowen@jiuchet.com
      *
-     * @param WsServer $server
-     * @param $frame
-     * @return false|int|mixed|Response
+     * @param SwServer $server
+     * @param int $fd
+     * @param int $reactor_id
+     * @param string $data
+     * @return mixed|void
      * @throws InvalidRouteException
-     * @lasttime: 2022/8/5 3:03 PM
+     * @lasttime: 2022/8/15 2:58 PM
      */
-    public function onMessage(WsServer $server, $frame)
+    public function onReceive(SwServer $server, int $fd, int $reactor_id, string $data)
     {
-        // 如果接管了onMessage，则不再执行
-        if ($this->onServer) {
-            if (method_exists($this->onServer, 'onMessage')) {
-                return call_user_func_array([$this->onServer, 'onMessage'], [$server, $frame, $this]);
-            }
-        }
-
         $_B   = Context::get('_B');
         $_GPC = Context::get('_GPC');
 
-        if (empty($_B['WebSocket']['fd'])) return $server->push($frame->fd, "信息丢失，请重新连接");
+        // 信息丢失，请重新连接
+        if (empty($_B['TCP']['fd'])) return $server->send($fd, stripslashes(json_encode([
+            'errcode' => 1,
+            'errmsg'  => 'connect info lost',
+        ], JSON_UNESCAPED_UNICODE)));
 
         // 修改上下文中的信息
-        $_B['WebSocket']['on']     = 'message';
-        $_B['WebSocket']['server'] = $server;
-        $_B['WebSocket']['frame']  = $frame;
+        $_B['TCP']['on']     = 'message';
+        $_B['TCP']['server'] = $server;
 
-        $jsonData = (array)@json_decode($frame->data, true);
+        $jsonData = Util::isJson($data) ? (array)@json_decode($data, true) : $data;
 
-        if (empty($jsonData)) {
-            return $server->push($frame->fd, stripslashes(json_encode([
-                'errcode' => 0,
-                'errmsg'  => 'Heart Success'
-            ], JSON_UNESCAPED_UNICODE)));
-        } else {
-            $route = $cacheRoute = $_B['WebSocket']['params']['route'];
+        // 空数据为触发心跳
+        if (empty($jsonData)) return $server->send($fd, stripslashes(json_encode([
+            'errcode' => 0,
+            'errmsg'  => 'Heart Success'
+        ], JSON_UNESCAPED_UNICODE)));
+
+        if (is_array($jsonData)) {
+            $route = $cacheRoute = $_B['TCP']['params']['route'];
 
             $_GPC = ArrayHelper::merge((array)$_GPC, $jsonData);
 
             $gpcRoute = trim($_GPC['route']);
             $route    = $gpcRoute ?: $route;
 
-            Context::set('_B', $_B);
-            Context::set('_GPC', $_GPC);
-
-            if (empty($route)) return $server->push($frame->fd, stripslashes(json_encode([
-                'errcode' => 211,
+            if (empty($route)) return $server->send($fd, stripslashes(json_encode([
+                'errcode' => 9002010,
                 'errmsg'  => 'Empty Route',
                 'cr'      => $cacheRoute,
                 'gr'      => $gpcRoute,
             ], JSON_UNESCAPED_UNICODE)));
 
+            $_B['TCP']['params']['route'] = $route;
+
+            Context::set('_B', $_B);
+            Context::set('_GPC', $_GPC);
+
+            // 如果接管了onMessage，则不再执行
+            if ($this->onServer) {
+                if (method_exists($this->onServer, 'onReceive')) {
+                    return call_user_func_array([$this->onServer, 'onReceive'], [$server, $fd, $reactor_id, $data]);
+                }
+            }
+
+            // 根据json数据中的路由转发到控制器内进行处理
             try {
                 return Yii::$app->runAction($route);
             } catch (Exception $e) {
@@ -393,6 +379,19 @@ class Server
                 echo($e->getMessage());
                 return false;
             }
+        }else{
+            // 如果接管了onMessage，则不再执行
+            if ($this->onServer) {
+                if (method_exists($this->onServer, 'onReceive')) {
+                    return call_user_func_array([$this->onServer, 'onReceive'], [$server, $fd, $reactor_id, $data]);
+                }
+            }
+
+            // 数据格式错误
+            return $server->send($fd, stripslashes(json_encode([
+                'errcode' => 9002015,
+                'errmsg'  => 'Data Format Error',
+            ], JSON_UNESCAPED_UNICODE)));
         }
     }
 
@@ -410,24 +409,23 @@ class Server
      */
     public function onClose($server, $fd)
     {
+        $_B = Context::get('_B');
+
+        echo "client-$fd is closed" . PHP_EOL;
+
+        $_B['TCP']['server'] = $server;
+        $_B['TCP']['frame']  = [];
+        $_B['TCP']['on']     = 'close';
+
+        Context::set('_B', $_B);
+
         if ($this->onServer) {
             if (method_exists($this->onServer, 'onClose')) {
                 return call_user_func_array([$this->onServer, 'onClose'], [$server, $fd, $this]);
             }
         }
 
-        $_B = Context::get('_B');
-
-        echo "client-$fd is closed" . PHP_EOL;
-
-        $_B['WebSocket']['server'] = $server;
-        $_B['WebSocket']['frame']  = [];
-        $_B['WebSocket']['on']     = 'close';
-
-        $route = $_B['WebSocket']['params']['route'];
-
-        Context::set('_B', $_B);
-
+        $route = $_B['TCP']['params']['route'];
         if (!empty($route) && $route != '/') {
             try {
                 return Yii::$app->runAction($route);
