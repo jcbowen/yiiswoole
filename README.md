@@ -26,7 +26,7 @@ xdebug、phptrace、aop、molten、xhprof、phalcon（Swoole 协程无法运行�
 
 composer执行
 
-```
+```shell
 composer require "jcbowen/yiiswoole"
 ```
 
@@ -40,7 +40,7 @@ composer require "jcbowen/yiiswoole"
 
 在`console/config/main.php`的controllerMap中加入配置
 
-```
+```php
         'websocket' => [
             'class'       => 'jcbowen\yiiswoole\websocket\console\controllers\WebSocketController',
             'serverClass' => 'jcbowen\yiiswoole\websocket\console\components\Server',
@@ -70,7 +70,8 @@ composer require "jcbowen/yiiswoole"
 ```
 
 ### 使用
-```
+
+```shell
 # 启动 
 php yii websocket/start
 # 停止 
@@ -82,17 +83,25 @@ php yii websocket/restart
 ### 运行说明
 
 ##### websocket客户端向服务器发送json字符串，如：
+##### 如果握手的时候，携带了目录路径，该路径将会作为route缓存起来；请求中如果携带了route字段，则替换缓存中的route
+```json
+{
+  "route": "site/test",
+  "message": "这是一条来自websocket客户端的消息"
+}
+```
 
-```
-{"route": "site/test", "message": "这是一条来自websocket客户端的消息"}
-（如果握手的时候，携带了目录路径，该路径将会作为route缓存起来；请求中如果携带了route字段，则替换缓存中的route）
-```
 ##### 通过执行```\jcbowen\yiiswoole\components\Context::get('_B');```方法，可以读取上下文中缓存的信息；
+
 ##### 通过执行```\jcbowen\yiiswoole\components\Context::get('_GPC');```方法，可以读取上下文中缓存的get/post数据；
+
 ##### 其中server和frame会被缓存到```_B```中；
+
 ##### 接收到的json会被转为数组后缓存到```_GPC```中；
+
 ##### 携带的目录代表的是监听到动作后转发到哪个路由(由于通过console运行的进程，所以这里的路由指的是console里的路由)。
-```
+
+```php
 // 这里展示onMessage的源码，用来理解实现原理
     public function onMessage(WsServer $server, $frame)
     {
@@ -153,7 +162,8 @@ php yii websocket/restart
 ##### 总结：jcbowen/yiiswoole插件会在websocket触发onmessage时，根据route调用对应的控制器方法，并将websocket服务和接收到数据分别存放到```_B```与```_GPC```中；
 
 ### 在控制器方法中使用
-```
+
+```php
 class SiteController extends Controller
 {    
     public function actionTest()
