@@ -13,34 +13,27 @@
   "license": "MIT",
   "authors": [
     {
-      "name": "Bowen",
+      "name": "jcbowen",
       "email": "bowen@jiuchet.com"
     }
   ],
   "minimum-stability": "dev",
   "require": {
     "php": ">=7.0",
-    "yiisoft/yii2": "*",
+    "yiisoft/yii2": "^2.0",
     "ext-posix": "*",
-    "ext-json": "*"
+    "ext-json": "*",
+    "jcbowen/jcbase-yii2": "^0.x-dev || ^0.3.4"
   },
   "autoload": {
     "psr-4": {
-      "jcbowen\\yiiswoole\\": "./src"
+      "Jcbowen\\yiiswoole\\": "./src"
     }
   },
   "repositories": {
     "packagist": {
       "type": "composer",
       "url": "https://mirrors.aliyun.com/composer/"
-    },
-    "0": {
-      "type": "composer",
-      "url": "https://packagist.org"
-    },
-    "1": {
-      "type": "composer",
-      "url": "https://packagist.phpcomposer.com"
     }
   },
   "config": {

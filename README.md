@@ -42,8 +42,8 @@ composer require "jcbowen/yiiswoole"
 
 ```php
         'websocket' => [
-            'class'       => 'jcbowen\yiiswoole\websocket\console\controllers\WebSocketController',
-            'serverClass' => 'jcbowen\yiiswoole\websocket\console\components\Server',
+            'class'       => 'Jcbowen\yiiswoole\websocket\console\controllers\WebSocketController',
+            'serverClass' => 'Jcbowen\yiiswoole\websocket\console\components\Server',
             'onWebsocket' => '', // 如果需要自行处理websocket服务的监听事件，可以在此处配置，如：console\components\onWebsocket
             'config'      => [
                 'daemonize'                => true,// 守护进程执行
@@ -91,9 +91,9 @@ php yii websocket/restart
 }
 ```
 
-##### 通过执行```\jcbowen\yiiswoole\components\Context::get('_B');```方法，可以读取上下文中缓存的信息；
+##### 通过执行```\Jcbowen\yiiswoole\components\Context::get('_B');```方法，可以读取上下文中缓存的信息；
 
-##### 通过执行```\jcbowen\yiiswoole\components\Context::get('_GPC');```方法，可以读取上下文中缓存的get/post数据；
+##### 通过执行```\Jcbowen\yiiswoole\components\Context::get('_GPC');```方法，可以读取上下文中缓存的get/post数据；
 
 ##### 其中server和frame会被缓存到```_B```中；
 

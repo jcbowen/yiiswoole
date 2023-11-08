@@ -1,9 +1,9 @@
 <?php
 
-namespace jcbowen\yiiswoole\tcp\console\components;
+namespace Jcbowen\yiiswoole\tcp\console\components;
 
-use jcbowen\yiiswoole\components\Context;
-use jcbowen\yiiswoole\components\Util;
+use Jcbowen\yiiswoole\components\Context;
+use Jcbowen\yiiswoole\components\Util;
 use Swoole\Process;
 use Swoole\Server\Port;
 use Swoole\Table;
@@ -20,7 +20,7 @@ use yii\helpers\ArrayHelper;
  * @author Bowen
  * @email bowen@jiuchet.com
  * @lasttime: 2022/8/15 2:15 PM
- * @package jcbowen\yiiswoole\tcp\console\components
+ * @package Jcbowen\yiiswoole\tcp\console\components
  */
 class Server
 {

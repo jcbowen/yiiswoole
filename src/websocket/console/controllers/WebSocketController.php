@@ -5,12 +5,12 @@
  * @author Bowen
  * @email bowen@jiuchet.com
  * @lastTime 2021/4/25 9:38 上午
- * @package jcbowen\yiiswoole\websocket\console\controllers
+ * @package Jcbowen\yiiswoole\websocket\console\controllers
  */
 
-namespace jcbowen\yiiswoole\websocket\console\controllers;
+namespace Jcbowen\yiiswoole\websocket\console\controllers;
 
-use jcbowen\yiiswoole\websocket\console\components\Server;
+use Jcbowen\yiiswoole\websocket\console\components\Server;
 use yii\console\Controller;
 use yii\helpers\ArrayHelper;
 
