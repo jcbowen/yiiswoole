@@ -33,7 +33,7 @@ composer require "jcbowen/yiiswoole"
 或者在 `composer.json` 加入
 
 ```
-"jcbowen/yiiswoole": "^3.0"
+"jcbowen/yiiswoole": "^4.0"
 ```
 
 ### 配置说明
@@ -42,15 +42,14 @@ composer require "jcbowen/yiiswoole"
 
 ```php
         'websocket' => [
-            'class'       => 'Jcbowen\yiiswoole\websocket\console\controllers\WebSocketController',
-            'serverClass' => 'Jcbowen\yiiswoole\websocket\console\components\Server',
-            'onWebsocket' => '', // 如果需要自行处理websocket服务的监听事件，可以在此处配置，如：console\components\onWebsocket
+            'class'       => \Jcbowen\yiiswoole\websocket\console\controllers\WebSocketController::class,
+            'serverClass' => \Jcbowen\yiiswoole\websocket\console\components\Server:class, // 可不填，默认值
             'config'      => [
                 'daemonize'                => true,// 守护进程执行
                 'heartbeat_check_interval' => 60, // 启用心跳检测，默认为false
                 'heartbeat_idle_time'      => 120, // 连接最大允许空闲的时间，启用心跳检测的情况下，如未设置，默认未心跳检测的两倍
-                'pid_file'                 => '@runtime/logs/websocket.pid',
-                'log_file'                 => '@runtime/logs/websocket.log',
+                'pid_file'                 => '@runtime/yiiswoole/websocket.pid',
+                'log_file'                 => '@runtime/yiiswoole/websocket.log',
                 'log_level'                => SWOOLE_LOG_ERROR,
                 'buffer_output_size'       => 2 * 1024 * 1024, //配置发送输出缓存区内存尺寸
                 'worker_num'               => 1,
@@ -83,7 +82,9 @@ php yii websocket/restart
 ### 运行说明
 
 ##### websocket客户端向服务器发送json字符串，如：
+
 ##### 如果握手的时候，携带了目录路径，该路径将会作为route缓存起来；请求中如果携带了route字段，则替换缓存中的route
+
 ```json
 {
   "route": "site/test",
@@ -93,7 +94,7 @@ php yii websocket/restart
 
 ##### 通过执行```\Jcbowen\yiiswoole\components\Context::get('_B');```方法，可以读取上下文中缓存的信息；
 
-##### 通过执行```\Jcbowen\yiiswoole\components\Context::get('_GPC');```方法，可以读取上下文中缓存的get/post数据；
+##### 通过执行```\Jcbowen\yiiswoole\components\Context::get('_GPC');```方法，可以读取上下文中缓存的get数据；
 
 ##### 其中server和frame会被缓存到```_B```中；
 
@@ -105,31 +106,34 @@ php yii websocket/restart
 // 这里展示onMessage的源码，用来理解实现原理
     public function onMessage(WsServer $server, $frame)
     {
-        // 如果接管了onMessage，则不再执行
-        if ($this->onWebsocket) {
-            if (method_exists($this->onWebsocket, 'onMessage')) {
-                return call_user_func_array([$this->onWebsocket, 'onMessage'], [$server, $frame, $this]);
-            }
-        }
-
         $_B   = Context::get('_B');
         $_GPC = Context::get('_GPC');
 
-        if (empty($_B['WebSocket']['fd'])) return $server->push($frame->fd, "信息丢失，请重新连接");
+        // 如果全局变量中的fd不存在，就意味着数据丢失了，需要客户端重新发起连接
+        if (empty($_B['WebSocket']['fd'])) {
+            $server->push($frame->fd, json_encode([
+                'errcode' => ErrCode::LOST_CONNECTION,
+                'errmsg'  => 'connect info lost',
+            ], JSON_UNESCAPED_UNICODE));
+            return $server->close($frame->fd);
+        }
 
         // 修改上下文中的信息
         $_B['WebSocket']['on']     = 'message';
         $_B['WebSocket']['server'] = $server;
         $_B['WebSocket']['frame']  = $frame;
 
-        $jsonData = (array)@json_decode($frame->data, true);
+        $jsonData = Util::isJson($frame->data) ? (array)@json_decode($frame->data, true) : $frame->data;
+        $jsonData = $jsonData ?: $frame->data; // 避免json解析失败会导致数据丢失的情况
 
-        if (empty($jsonData)) {
-            return $server->push($frame->fd, stripslashes(json_encode([
-                'errcode' => 0,
+        // 空数据为触发心跳
+        if (empty($jsonData))
+            return $server->push($frame->fd, json_encode([
+                'errcode' => ErrCode::SUCCESS,
                 'errmsg'  => 'Heart Success'
-            ], JSON_UNESCAPED_UNICODE)));
-        } else {
+            ], JSON_UNESCAPED_UNICODE));
+
+        if (is_array($jsonData)) {
             $route = $cacheRoute = $_B['WebSocket']['params']['route'];
 
             $_GPC = ArrayHelper::merge((array)$_GPC, $jsonData);
@@ -137,23 +141,35 @@ php yii websocket/restart
             $gpcRoute = trim($_GPC['route']);
             $route    = $gpcRoute ?: $route;
 
+            // 如果不携带route，就不知道应该由哪个路由进行处理
+            if (empty($route))
+                return $server->push($frame->fd, json_encode([
+                    'errcode' => ErrCode::PARAMETER_ERROR,
+                    'errmsg'  => 'Empty Route',
+                    'cr'      => $cacheRoute,
+                    'gr'      => $gpcRoute,
+                ], JSON_UNESCAPED_UNICODE));
+
+            $_B['WebSocket']['params']['route'] = $route;
+
+            // 更新上下文中的信息
             Context::set('_B', $_B);
             Context::set('_GPC', $_GPC);
 
-            if (empty($route)) return $server->push($frame->fd, stripslashes(json_encode([
-                'errcode' => 211,
-                'errmsg'  => 'Empty Route',
-                'cr'      => $cacheRoute,
-                'gr'      => $gpcRoute,
-            ], JSON_UNESCAPED_UNICODE)));
-
+            // 根据json数据中的路由转发到控制器内进行处理
             try {
                 return Yii::$app->runAction($route);
             } catch (Exception $e) {
                 Yii::info($e);
-                echo($e->getMessage());
+                $this->Controller->stdout($e->getMessage() . PHP_EOL, BaseConsole::FG_RED);
                 return false;
             }
+        } else {
+            // 数据格式错误
+            return $server->push($frame->fd, json_encode([
+                'errcode' => ErrCode::ILLEGAL_FORMAT,
+                'errmsg'  => 'Data Format Error',
+            ], JSON_UNESCAPED_UNICODE));
         }
     }
 

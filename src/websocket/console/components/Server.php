@@ -2,6 +2,7 @@
 
 namespace Jcbowen\yiiswoole\websocket\console\components;
 
+use Jcbowen\JcbaseYii2\components\ErrCode;
 use Jcbowen\yiiswoole\components\Context;
 use Jcbowen\yiiswoole\components\Util;
 use Swoole\Process;
@@ -9,85 +10,77 @@ use Swoole\Server\Port;
 use Swoole\Table;
 use Swoole\WebSocket\Server as WsServer;
 use Yii;
+use yii\base\Component;
+use yii\base\InvalidArgumentException;
 use yii\base\InvalidRouteException;
+use yii\console\Controller;
 use yii\console\Exception;
 use yii\console\Response;
 use yii\helpers\ArrayHelper;
+use yii\helpers\BaseConsole;
 
 /**
- * websocket server
+ * Class Server
  *
+ * @descripton server for websocket
  * @author Bowen
  * @email bowen@jiuchet.com
- * @lasttime: 2022/8/5 9:09 AM
+ * @lasttime: 2023/11/16 2:47 PM
  * @package Jcbowen\yiiswoole\websocket\console\components
  */
-class Server
+class Server extends Component
 {
-    /** @descripton 服务配置 */
-    protected $serverConfig;
-
-    /** @descripton 需要监听的端口 */
-    protected $serverPorts;
-
-    /** @descripton 替换websocket的回调 */
-    protected $onWebsocket;
-
-    /** @descripton 需要创建的内存级table */
-    protected $tablesConfig;
+    // -----
+    /**
+     * @var array 标准的swoole4配置项都可以在此加入
+     */
+    protected array $serverConfig;
 
     /**
-     * @var array
+     * @var array 监听多端口时，每个端口的配置信息
      */
-    public $_tables = [];
+    protected array $serverPorts;
 
     /**
-     * @var WsServer
+     * @descripton 需要创建的内存级table们
      */
-    public $_ws = [];
+    protected array $tablesConfig;
+
+    /** @var Controller console控制器 */
+    protected Controller $Controller;
+
+    // -----
+    /**
+     * @var array 实例化的内存级table都会存储在此
+     */
+    public array $_tables = [];
+
+    /**
+     * @var WsServer|null WebSocket实例
+     */
+    public ?WsServer $_ws = null;
 
     /**
      * pid 文件所在位置
      * @var string
      */
-    public $pidFile = '';
+    public string $pidFile = '';
 
     /**
      * 所有监听成功的端口
      * @var array
      */
-    public $ports = [];
+    public array $ports = [];
 
     /**
-     * Server constructor.
-     * @param array $serverConfig 通用配置
-     * @param array $serverPorts 多端口配置
-     * @param $onWebsocket
-     * @param array $tablesConfig
+     * {@inheritdoc}
      */
-    public function __construct(array $serverConfig, array $serverPorts, $onWebsocket = null, array $tablesConfig = [])
+    public function init()
     {
-        $this->serverConfig = $serverConfig;
+        if (empty($this->serverConfig))
+            throw new InvalidArgumentException('Configuration is empty. Please check the configuration file.');
 
-        $this->serverPorts = $serverPorts;
-
-        $this->onWebsocket = $onWebsocket ?: null;
-
-        $this->tablesConfig = $tablesConfig;
-
-        if (empty($this->serverConfig)) {
-            echo '配置信息为空，请检查配置文件' . PHP_EOL;
-            die();
-        }
-
-        if (!empty($this->serverConfig['pid_file'])) {
-            $this->pidFile = $this->serverConfig['pid_file'];
-        }
-
-        if (empty($this->pidFile)) {
-            echo '请设置pid_file路径' . PHP_EOL;
-            die();
-        }
+        $this->pidFile = $this->serverConfig['pid_file'] ?: '@runtime/yiiswoole/websocket.pid';
     }
 
     /**
@@ -97,29 +90,28 @@ class Server
      * @email bowen@jiuchet.com
      *
      * @return WsServer
-     * @lasttime: 2022/8/5 2:55 PM
+     * @lasttime: 2023/11/16 2:48 PM
      */
     public function run(): WsServer
     {
-        // 根据配置文件创建内存共享table
-        if (!empty($this->tablesConfig) && is_array($this->tablesConfig)) {
+        // 如果在配置文件中，配置了内存共享table，则创建
+        if (!empty($this->tablesConfig)) {
             foreach ($this->tablesConfig as $ind => $tableConfig) {
                 if (empty($tableConfig['column']) || !is_array($tableConfig['column'])) continue;
                 $tableSize           = $tableConfig['size'] ?: 1024;
                 $conflict_proportion = $tableConfig['conflict_proportion'] ?: 0.2;
-                /** @var Table */
                 $this->_tables[$ind] = new Table($tableSize, $conflict_proportion);
 
-                foreach ($tableConfig['column'] as $column) {
+                foreach ($tableConfig['column'] as $column)
                     $this->_tables[$ind]->column($column['name'], $column['type'], $column['size']);
-                }
+
                 $this->_tables[$ind]->create();
             }
         }
 
         static $first = '';
         foreach ($this->serverPorts as $k => $port) {
-            // 将第一个作为主服务
+            // 将第一个端口作为主服务
             if (empty($first)) {
                 $this->_ws = new WsServer($port['host'], $port['port'], $port['mode'], $port['socketType']);
 
@@ -129,9 +121,9 @@ class Server
                 // 将配置中的地址为swoole能理解的绝对地址
                 Util::translateArrayFilePath($portConfig);
 
-                if (empty($portConfig['cert'])) {
+                // 如果不需要证书，则清理掉相关参数
+                if (empty($portConfig['cert']))
                     unset($portConfig['ssl_cert_file'], $portConfig['ssl_key_file']);
-                }
 
                 // 移除不需要的配置项及非swoole的自定义配置项
                 unset($portConfig['host'], $portConfig['port'], $portConfig['mode'], $portConfig['socketType'], $portConfig['cert']);
@@ -140,7 +132,7 @@ class Server
 
                 $first = $k;
             } else {
-                // 其他的作为主服务的端口监听
+                // 其他的端口作为主服务的端口监听
                 /**
                  * @var $ports Port
                  */
@@ -182,85 +174,76 @@ class Server
     }
 
     /**
-     * 结束服务
+     * 停止服务
      *
      * @author Bowen
      * @email bowen@jiuchet.com
      *
      * @return bool
-     * @lasttime: 2022/8/5 2:54 PM
+     * @lasttime: 2023/11/16 2:48 PM
      */
     public function stop(): bool
     {
         if ($pid = $this->getPid()) {
-            if ($this->onWorkerStop($this->_ws, false)) {
+            if ($this->onWorkerStop($this->_ws, null)) {
                 return Process::kill($pid, SIGTERM);
             } else {
-                echo '结束服务被终止' . PHP_EOL;
+                $this->Controller->stdout('结束服务被终止' . PHP_EOL, BaseConsole::FG_YELLOW);
                 return false;
             }
         } else {
-            echo '进程未启动，无需停止' . PHP_EOL;
+            $this->Controller->stdout('进程未启动，无需停止' . PHP_EOL, BaseConsole::FG_YELLOW);
             return false;
         }
     }
 
     /**
+     * 监听worker启动
      *
      * @author Bowen
      * @email bowen@jiuchet.com
      *
      * @param WsServer $server
-     * @param int|bool $workerId
-     * @return bool|mixed
-     * @lasttime: 2022/8/5 2:54 PM
+     * @param $workerId
+     * @lasttime: 2023/11/16 2:49 PM
      */
     public function onWorkerStart(WsServer $server, $workerId)
     {
+        $this->Controller->stdout("Start Websocket Worker, Ports:" . json_encode($this->ports) . PHP_EOL, BaseConsole::FG_GREEN);
 
-        echo("服务开始运行, 监听" . json_encode($this->ports) . PHP_EOL);
+        $global                = Context::getGlobal('WebSocket');
+        $global['server']      = $server;
+        $global['workerIds'][] = $workerId;
+        $global['workerIds']   = array_unique($global['workerIds']);
+        $global['on']          = 'start';
+        $global['tables']      = $this->_tables;
 
-        Context::setGlobal('WebSocket', [
-            'server'   => $server,
-            'workerId' => $workerId,
-            'on'       => 'start',
-            'tables'   => $this->_tables
-        ]);
-
-        if ($this->onWebsocket) {
-            if (method_exists($this->onWebsocket, 'onWorkerStart')) {
-                return call_user_func_array([$this->onWebsocket, 'onWorkerStart'], [$server, $workerId, $this]);
-            }
-        }
-
-        return true;
+        Context::setGlobal('WebSocket', $global);
     }
 
     /**
+     * 监听worker停止
      *
      * @author Bowen
      * @email bowen@jiuchet.com
      *
      * @param $server
-     * @param int|bool $workerId
+     * @param int|null $workerId
      * @return bool
-     * @lasttime: 2022/8/5 2:43 PM
+     * @lasttime: 2023/11/16 2:52 PM
      */
-    public function onWorkerStop($server, $workerId): bool
+    public function onWorkerStop($server, ?int $workerId): bool
     {
         $global = Context::getGlobal('WebSocket');
 
         $global['server'] = $server;
         $global['on']     = 'stop';
+        // 移除当前workerId
+        $global['workerIds'] = array_diff($global['workerIds'], [$workerId]);
 
         Context::setGlobal('WebSocket', $global);
 
-        echo '进程已经停止' . PHP_EOL;
-
-        // 如果接管了onWorkerStop，则执行
-        if (!empty($this->onWebsocket) && method_exists($this->onWebsocket, 'onWorkerStop')) {
-            return call_user_func_array([$this->onWebsocket, 'onWorkerStop'], [$server, $workerId, $this]);
-        }
+        $this->Controller->stdout('The worker has been stopped' . PHP_EOL, BaseConsole::FG_RED);
 
         Context::delGlobal('WebSocket');
 
@@ -268,7 +251,7 @@ class Server
     }
 
     /**
-     * 握手成功，开启连接
+     * 监听open事件
      *
      * @author Bowen
      * @email bowen@jiuchet.com
@@ -277,58 +260,49 @@ class Server
      * @param $request
      * @return false|int|mixed|Response
      * @throws InvalidRouteException
-     * @lasttime: 2022/8/5 2:52 PM
+     * @lasttime: 2023/11/16 2:53 PM
      */
     public function onOpen($server, $request)
     {
-        echo 'client-fd: ' . $request->fd . PHP_EOL;
-        echo 'msg: handshake success!' . PHP_EOL . PHP_EOL;
+        $this->Controller->stdout("Handshake Success (fd: $request->fd)" . PHP_EOL . PHP_EOL, BaseConsole::FG_GREEN);
 
-        $_GPC      = ArrayHelper::merge((array)$request->get, (array)$request->post);
+        $_GPC      = (array)$request->get;
         $_GPC['a'] = (string)$_GPC['a'];
 
-        $version = trim($_GPC['v']);
-        $route   = $request->server['path_info'];
+        $version = trim($_GPC['v']) ?: '1.0.0';
+        $route   = $request->server['path_info'] ?: '';
 
-        $_B     = (array)Context::get('_B');
-        $global = (array)Context::getGlobal('WebSocket');
+        $_B = (array)Context::get('_B');
 
-        $_B['WebSocket']['fd']     = $request->fd;
-        $_B['WebSocket']['server'] = $server;
-        $_B['WebSocket']['frame']  = $request;
-        $_B['WebSocket']['on']     = 'open';
-        $_B['WebSocket']['params'] = [
+        // 初始化上下文变量
+        $_B['WebSocket']['fd']      = $request->fd;
+        $_B['WebSocket']['server']  = $server;
+        $_B['WebSocket']['request'] = $request;
+        $_B['WebSocket']['frame']   = [];
+        $_B['WebSocket']['on']      = 'open';
+        $_B['WebSocket']['params']  = [
             'route'   => $route,
             'version' => $version,
         ];
-        $_B['WebSocket']['global'] = $global;
 
         Context::set('_B', $_B);
         Context::set('_GPC', $_GPC);
 
-        // 如果接管了onOpen，则不再执行
-        if ($this->onWebsocket) {
-            if (method_exists($this->onWebsocket, 'onOpen')) {
-                return call_user_func_array([$this->onWebsocket, 'onOpen'], [$server, $request, $this]);
-            }
-        }
-
-        // 有route的情况才执行
-        if (!empty($route) && $route !== '/') {
+        // route不为空时，可以根据route自行处理握手成功信息
+        if (!empty($route) && $route !== '/')
             try {
                 return Yii::$app->runAction($route);
             } catch (Exception $e) {
                 Yii::info($e);
-                echo($e->getMessage());
+                $this->Controller->stdout($e->getMessage() . PHP_EOL, BaseConsole::FG_RED);
                 return false;
             }
-        }
 
-        return $server->push($request->fd, stripslashes(json_encode([
-            'errcode' => 200,
-            'errmsg'  => 'handshake success',
+        return $server->push($request->fd, json_encode([
+            'errcode' => ErrCode::SUCCESS,
+            'errmsg'  => 'Handshake Success',
             'route'   => $route
-        ], JSON_UNESCAPED_UNICODE)));
+        ], JSON_UNESCAPED_UNICODE));
     }
 
     /**
@@ -339,19 +313,23 @@ class Server
      *
      * @param WsServer $server
      * @param $frame
-     * @return false|int|mixed|Response
+     * @return bool|int|mixed|Response
      * @throws InvalidRouteException
-     * @lasttime: 2022/8/5 3:03 PM
+     * @lasttime: 2023/11/16 2:59 PM
      */
     public function onMessage(WsServer $server, $frame)
     {
         $_B   = Context::get('_B');
         $_GPC = Context::get('_GPC');
 
-        if (empty($_B['WebSocket']['fd'])) return $server->push($frame->fd, stripslashes(json_encode([
-            'errcode' => 1,
-            'errmsg'  => 'connect info lost',
-        ], JSON_UNESCAPED_UNICODE)));
+        // 如果全局变量中的fd不存在，就意味着数据丢失了，需要客户端重新发起连接
+        if (empty($_B['WebSocket']['fd'])) {
+            $server->push($frame->fd, json_encode([
+                'errcode' => ErrCode::LOST_CONNECTION,
+                'errmsg'  => 'connect info lost',
+            ], JSON_UNESCAPED_UNICODE));
+            return $server->close($frame->fd);
+        }
 
         // 修改上下文中的信息
         $_B['WebSocket']['on']     = 'message';
@@ -359,12 +337,14 @@ class Server
         $_B['WebSocket']['frame']  = $frame;
 
         $jsonData = Util::isJson($frame->data) ? (array)@json_decode($frame->data, true) : $frame->data;
+        $jsonData = $jsonData ?: $frame->data; // 避免因json解析失败导致数据丢失的情况
 
         // 空数据为触发心跳
-        if (empty($jsonData)) return $server->push($frame->fd, stripslashes(json_encode([
-            'errcode' => 0,
-            'errmsg'  => 'Heart Success'
-        ], JSON_UNESCAPED_UNICODE)));
+        if (empty($jsonData))
+            return $server->push($frame->fd, json_encode([
+                'errcode' => ErrCode::SUCCESS,
+                'errmsg'  => 'Heart Success'
+            ], JSON_UNESCAPED_UNICODE));
 
         if (is_array($jsonData)) {
             $route = $cacheRoute = $_B['WebSocket']['params']['route'];
@@ -374,51 +354,40 @@ class Server
             $gpcRoute = trim($_GPC['route']);
             $route    = $gpcRoute ?: $route;
 
-            if (empty($route)) return $server->push($frame->fd, stripslashes(json_encode([
-                'errcode' => 9002010,
-                'errmsg'  => 'Empty Route',
-                'cr'      => $cacheRoute,
-                'gr'      => $gpcRoute,
-            ], JSON_UNESCAPED_UNICODE)));
+            // 如果route不存在，不知道应该由哪个路由进行处理，只能进行报错处理
+            if (empty($route))
+                return $server->push($frame->fd, json_encode([
+                    'errcode' => ErrCode::PARAMETER_ERROR,
+                    'errmsg'  => 'Empty Route',
+                    'cr'      => $cacheRoute,
+                    'gr'      => $gpcRoute,
+                ], JSON_UNESCAPED_UNICODE));
 
             $_B['WebSocket']['params']['route'] = $route;
 
+            // 更新上下文中的信息
             Context::set('_B', $_B);
             Context::set('_GPC', $_GPC);
-
-            // 如果接管了onMessage，则不再执行
-            if ($this->onWebsocket) {
-                if (method_exists($this->onWebsocket, 'onMessage')) {
-                    return call_user_func_array([$this->onWebsocket, 'onMessage'], [$server, $frame, $this]);
-                }
-            }
 
             // 根据json数据中的路由转发到控制器内进行处理
             try {
                 return Yii::$app->runAction($route);
             } catch (Exception $e) {
                 Yii::info($e);
-                echo($e->getMessage());
+                $this->Controller->stdout($e->getMessage() . PHP_EOL, BaseConsole::FG_RED);
                 return false;
             }
         } else {
-            // 如果接管了onMessage，则不再执行
-            if ($this->onWebsocket) {
-                if (method_exists($this->onWebsocket, 'onMessage')) {
-                    return call_user_func_array([$this->onWebsocket, 'onMessage'], [$server, $frame, $this]);
-                }
-            }
-
             // 数据格式错误
-            return $server->push($frame->fd, stripslashes(json_encode([
-                'errcode' => 9002015,
+            return $server->push($frame->fd, json_encode([
+                'errcode' => ErrCode::ILLEGAL_FORMAT,
                 'errmsg'  => 'Data Format Error',
-            ], JSON_UNESCAPED_UNICODE)));
+            ], JSON_UNESCAPED_UNICODE));
         }
     }
 
     /**
-     * 监听关闭
+     * 监听关闭连接
      *
      * @author Bowen
      * @email bowen@jiuchet.com
@@ -427,13 +396,13 @@ class Server
      * @param $fd
      * @return false|int|mixed|Response
      * @throws InvalidRouteException
-     * @lasttime: 2022/8/5 2:39 PM
+     * @lasttime: 2023/11/16 3:13 PM
      */
     public function onClose($server, $fd)
     {
         $_B = Context::get('_B');
 
-        echo "client-$fd is closed" . PHP_EOL;
+        $this->Controller->stdout("client-$fd is closed" . PHP_EOL);
 
         $_B['WebSocket']['server'] = $server;
         $_B['WebSocket']['frame']  = [];
@@ -441,45 +410,41 @@ class Server
 
         Context::set('_B', $_B);
 
-        if ($this->onWebsocket) {
-            if (method_exists($this->onWebsocket, 'onClose')) {
-                return call_user_func_array([$this->onWebsocket, 'onClose'], [$server, $fd, $this]);
-            }
-        }
-
         $route = $_B['WebSocket']['params']['route'];
         if (!empty($route) && $route != '/') {
             try {
                 return Yii::$app->runAction($route);
             } catch (Exception $e) {
                 Yii::info($e);
-                echo($e->getMessage());
+                $this->Controller->stdout($e->getMessage() . PHP_EOL, BaseConsole::FG_RED);
             }
         }
         return false;
     }
 
     /**
-     * 获取pid
+     * 获取进程id(PID)
      *
      * @author Bowen
      * @email bowen@jiuchet.com
      *
      * @return false|string
-     * @lasttime: 2022/8/5 2:39 PM
+     * @lasttime: 2023/11/16 3:42 PM
      */
     public function getPid()
     {
-        if (empty($this->pidFile)) return false;
+        if (empty($this->pidFile))
+            return false;
+
         $pid_file = Yii::getAlias($this->pidFile);
         if (file_exists($pid_file)) {
             $pid = file_get_contents($pid_file);
-            if (posix_getpgid($pid)) {
+            if (posix_getpgid($pid))
                 return $pid;
-            } else {
+            else
                 unlink($pid_file);
-            }
         }
+
         return false;
     }
 }
