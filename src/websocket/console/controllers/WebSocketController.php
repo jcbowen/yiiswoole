@@ -11,8 +11,11 @@
 namespace Jcbowen\yiiswoole\websocket\console\controllers;
 
 use Jcbowen\yiiswoole\websocket\console\components\Server;
+use Yii;
+use yii\base\Exception;
 use yii\console\Controller;
 use yii\helpers\ArrayHelper;
+use yii\helpers\FileHelper;
 
 class WebSocketController extends Controller
 {
@@ -113,6 +116,36 @@ class WebSocketController extends Controller
      */
     public function actionStart(): \Swoole\WebSocket\Server
     {
+        // 检查pid_file目录是否存在，如果不存在则创建
+        if (!empty($this->server->serverConfig['pid_file'])) {
+            $pid_file = Yii::getAlias($this->server->serverConfig['pid_file']);
+            if (!is_dir(dirname($pid_file))) {
+                try {
+                    FileHelper::createDirectory(dirname($pid_file), 0755);
+                } catch (Exception $e) {
+                    $this->stdout('Failed to create directory: ' . dirname($pid_file) . PHP_EOL);
+                    exit(1);
+                }
+                // 分配给www用户
+                chown(dirname($pid_file), 'www');
+            }
+        }
+        // 判断log_file文件是否存在，如果不存在则创建
+        if (!empty($this->server->serverConfig['log_file'])) {
+            $log_file = Yii::getAlias($this->server->serverConfig['log_file']);
+            // 检查log_file目录是否存在，如果不存在则创建
+            if (!is_dir(dirname($log_file))) {
+                try {
+                    FileHelper::createDirectory(dirname($log_file), 0755);
+                } catch (Exception $e) {
+                    $this->stdout('Failed to create directory: ' . dirname($log_file) . PHP_EOL);
+                    exit(1);
+                }
+                // 分配给www用户
+                chown(dirname($log_file), 'www');
+            }
+        }
+
         return $this->server->run();
     }
 
