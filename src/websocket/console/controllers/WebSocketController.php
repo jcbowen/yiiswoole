@@ -22,7 +22,7 @@ class WebSocketController extends Controller
     public string $serverClass = Server::class;
 
     /**
-     * @var array 标准的swoole4配置项都可以在此加入
+     * @var array 标准的swoole4配置项
      */
     public array $serverConfig = [];
 

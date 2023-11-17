@@ -204,10 +204,10 @@ class Server extends Component
      * @email bowen@jiuchet.com
      *
      * @param WsServer $server
-     * @param $workerId
+     * @param int|null $workerId
      * @lasttime: 2023/11/16 2:49 PM
      */
-    public function onWorkerStart(WsServer $server, $workerId)
+    public function onWorkerStart(WsServer $server, ?int $workerId = null)
     {
         $this->Controller->stdout("Start Websocket Worker, Ports:" . json_encode($this->ports) . PHP_EOL, BaseConsole::FG_GREEN);
 
