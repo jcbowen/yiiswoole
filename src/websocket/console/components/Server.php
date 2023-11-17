@@ -34,20 +34,20 @@ class Server extends Component
     /**
      * @var array 标准的swoole4配置项都可以在此加入
      */
-    protected array $serverConfig;
+    public array $serverConfig;
 
     /**
      * @var array 监听多端口时，每个端口的配置信息
      */
-    protected array $serverPorts;
+    public array $serverPorts;
 
     /**
      * @descripton 需要创建的内存级table们
      */
-    protected array $tablesConfig;
+    public array $tablesConfig;
 
     /** @var Controller console控制器 */
-    protected Controller $Controller;
+    public Controller $Controller;
 
     // -----
     /**
