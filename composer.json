@@ -30,6 +30,11 @@
       "Jcbowen\\yiiswoole\\": "./src"
     }
   },
+  "extra": {
+    "branch-alias": {
+      "dev-master": "4.x-dev"
+    }
+  },
   "config": {
     "allow-plugins": {
       "yiisoft/yii2-composer": true
