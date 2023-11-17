@@ -42,9 +42,9 @@ composer require "jcbowen/yiiswoole"
 
 ```php
         'websocket' => [
-            'class'       => \Jcbowen\yiiswoole\websocket\console\controllers\WebSocketController::class,
-            'serverClass' => \Jcbowen\yiiswoole\websocket\console\components\Server:class, // 可不填，默认值
-            'config'      => [
+            'class'        => \Jcbowen\yiiswoole\websocket\console\controllers\WebSocketController::class,
+            'serverClass'  => \Jcbowen\yiiswoole\websocket\console\components\Server::class, // 可不填，默认值
+            'serverConfig' => [
                 'daemonize'                => true,// 守护进程执行
                 'heartbeat_check_interval' => 60, // 启用心跳检测，默认为false
                 'heartbeat_idle_time'      => 120, // 连接最大允许空闲的时间，启用心跳检测的情况下，如未设置，默认未心跳检测的两倍
@@ -56,7 +56,7 @@ composer require "jcbowen/yiiswoole"
                 'max_wait_time'            => 60,
                 'reload_async'             => true,
             ],
-            'ports'       => [
+            'serverPorts'  => [
                 // 第一个为websocket主服务
                 'ws' => [
                     'host' => '0.0.0.0',
@@ -64,7 +64,7 @@ composer require "jcbowen/yiiswoole"
                     'cert' => false, // 证书类型 默认值：false 其它值：'ssl'
                 ]
             ],
-            'tables'      => [],
+            'tablesConfig' => [],
         ],
 ```
 
