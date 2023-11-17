@@ -19,7 +19,7 @@
   ],
   "minimum-stability": "dev",
   "require": {
-    "php": ">=7.0",
+    "php": ">=7.4",
     "yiisoft/yii2": "^2.0",
     "ext-posix": "*",
     "ext-json": "*",
@@ -30,15 +30,15 @@
       "Jcbowen\\yiiswoole\\": "./src"
     }
   },
-  "repositories": {
-    "packagist": {
-      "type": "composer",
-      "url": "https://mirrors.aliyun.com/composer/"
-    }
-  },
   "config": {
     "allow-plugins": {
       "yiisoft/yii2-composer": true
     }
-  }
+  },
+  "repositories": [
+    {
+      "type": "composer",
+      "url": "https://asset-packagist.org"
+    }
+  ]
 }
