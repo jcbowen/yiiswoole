@@ -3,6 +3,7 @@
 namespace Jcbowen\yiiswoole\tcp\console\components;
 
 use Jcbowen\JcbaseYii2\components\ErrCode;
+use Jcbowen\yiiswoole\components\ContactData;
 use Jcbowen\yiiswoole\components\Context;
 use Jcbowen\yiiswoole\components\Util;
 use Swoole\Process;
@@ -264,7 +265,7 @@ class Server extends Component
     {
         $this->Controller->stdout("Connect Success (fd: $fd)" . PHP_EOL . PHP_EOL, BaseConsole::FG_GREEN);
 
-        $_B = (array)Context::get('_B');
+        $_B = (array)ContactData::get($fd, '_B');
 
         // 初始化上下文变量
         $_B['TCP']['server']    = $server;
@@ -272,7 +273,7 @@ class Server extends Component
         $_B['TCP']['reactorId'] = $reactorId;
         $_B['TCP']['on']        = 'connect';
 
-        Context::set('_B', $_B);
+        ContactData::set($fd, '_B', $_B);
 
         return $server->send($fd, json_encode([
             'errcode' => ErrCode::SUCCESS,
@@ -296,8 +297,8 @@ class Server extends Component
      */
     public function onReceive(SwServer $server, int $fd, int $reactorId, string $data)
     {
-        $_B   = Context::get('_B');
-        $_GPC = Context::get('_GPC');
+        $_B   = ContactData::get($fd, '_B');
+        $_GPC = ContactData::get($fd, '_GPC');
 
         // 如果全局变量中的fd不存在，就意味着数据丢失了，需要客户端重新发起连接
         if (empty($_B['TCP']['fd'])) {
@@ -343,8 +344,8 @@ class Server extends Component
             $_B['TCP']['params']['route'] = $route;
 
             // 更新上下文中的信息
-            Context::set('_B', $_B);
-            Context::set('_GPC', $_GPC);
+            ContactData::set($fd, '_B', $_B);
+            ContactData::set($fd, '_GPC', $_GPC);
 
             // 根据json数据中的路由转发到控制器内进行处理
             try {
@@ -377,14 +378,14 @@ class Server extends Component
      */
     public function onClose($server, $fd)
     {
-        $_B = Context::get('_B');
+        $_B = ContactData::get($fd, '_B');
 
         $this->Controller->stdout("client-$fd is closed" . PHP_EOL);
 
         $_B['TCP']['server'] = $server;
         $_B['TCP']['on']     = 'close';
 
-        Context::set('_B', $_B);
+        ContactData::set($fd, '_B', $_B);
 
         $route = $_B['TCP']['params']['route'];
         if (!empty($route) && $route != '/') {

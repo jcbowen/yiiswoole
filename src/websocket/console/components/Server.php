@@ -3,6 +3,7 @@
 namespace Jcbowen\yiiswoole\websocket\console\components;
 
 use Jcbowen\JcbaseYii2\components\ErrCode;
+use Jcbowen\yiiswoole\components\ContactData;
 use Jcbowen\yiiswoole\components\Context;
 use Jcbowen\yiiswoole\components\Util;
 use Swoole\Process;
@@ -270,7 +271,7 @@ class Server extends Component
         $version = trim($_GPC['v']) ?: '1.0.0';
         $route   = $request->server['path_info'] ?: '';
 
-        $_B = (array)Context::get('_B');
+        $_B = (array)ContactData::get($request->fd, '_B');
 
         // 初始化上下文变量
         $_B['WebSocket']['fd']      = $request->fd;
@@ -283,8 +284,8 @@ class Server extends Component
             'version' => $version,
         ];
 
-        Context::set('_B', $_B);
-        Context::set('_GPC', $_GPC);
+        ContactData::set($request->fd, '_B', $_B);
+        ContactData::set($request->fd, '_GPC', $_GPC);
 
         // route不为空时，可以根据route自行处理握手成功信息
         if (!empty($route) && $route !== '/')
@@ -317,8 +318,8 @@ class Server extends Component
      */
     public function onMessage(WsServer $server, $frame)
     {
-        $_B   = Context::get('_B');
-        $_GPC = Context::get('_GPC');
+        $_B   = ContactData::get($frame->fd, '_B');
+        $_GPC = ContactData::get($frame->fd, '_GPC');
 
         // 如果全局变量中的fd不存在，就意味着数据丢失了，需要客户端重新发起连接
         if (empty($_B['WebSocket']['fd'])) {
@@ -364,8 +365,8 @@ class Server extends Component
             $_B['WebSocket']['params']['route'] = $route;
 
             // 更新上下文中的信息
-            Context::set('_B', $_B);
-            Context::set('_GPC', $_GPC);
+            ContactData::set($frame->fd, '_B', $_B);
+            ContactData::set($frame->fd, '_GPC', $_GPC);
 
             // 根据json数据中的路由转发到控制器内进行处理
             try {
@@ -398,7 +399,7 @@ class Server extends Component
      */
     public function onClose($server, $fd)
     {
-        $_B = Context::get('_B');
+        $_B = ContactData::get($fd, '_B');
 
         $this->Controller->stdout("client-$fd is closed" . PHP_EOL);
 
@@ -406,7 +407,7 @@ class Server extends Component
         $_B['WebSocket']['frame']  = [];
         $_B['WebSocket']['on']     = 'close';
 
-        Context::set('_B', $_B);
+        ContactData::set($fd, '_B', $_B);
 
         $route = $_B['WebSocket']['params']['route'];
         if (!empty($route) && $route != '/') {
