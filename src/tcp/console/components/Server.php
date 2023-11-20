@@ -188,11 +188,11 @@ class Server extends Component
             if ($this->onWorkerStop($this->_ms, null)) {
                 return Process::kill($pid, SIGTERM);
             } else {
-                $this->Controller->stdout('结束服务被终止' . PHP_EOL, BaseConsole::FG_YELLOW);
+                $this->Controller->stdout('The end of service is terminated' . PHP_EOL, BaseConsole::FG_YELLOW);
                 return false;
             }
         } else {
-            $this->Controller->stdout('进程未启动，无需停止' . PHP_EOL, BaseConsole::FG_YELLOW);
+            $this->Controller->stdout('The process is not started and does not need to be stopped' . PHP_EOL, BaseConsole::FG_YELLOW);
             return false;
         }
     }
@@ -244,10 +244,6 @@ class Server extends Component
             $global['workerIds'] = array_diff($global['workerIds'], [$workerId]);
 
         Context::setGlobal('TCP', $global);
-
-        $this->Controller->stdout('The worker has been stopped' . PHP_EOL, BaseConsole::FG_RED);
-
-        Context::delGlobal('TCP');
 
         return true;
     }

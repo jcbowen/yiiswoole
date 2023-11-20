@@ -186,7 +186,7 @@ class TcpController extends Controller
         $time    = 0;
         while (posix_getpgid($pid = $this->server->getPid()) && !empty($pid) && $time <= $maxTime) {
             usleep(500000); // 每0.5秒执行一次
-            $this->stdout("Pid: $pid, Stopping..." . PHP_EOL);
+            $this->stdout("Pid: $pid, Checking..." . PHP_EOL);
             $time++;
         }
 
