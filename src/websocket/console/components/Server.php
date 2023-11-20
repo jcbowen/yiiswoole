@@ -238,8 +238,10 @@ class Server extends Component
 
         $global['server'] = $server;
         $global['on']     = 'stop';
+
         // 移除当前workerId
-        $global['workerIds'] = array_diff($global['workerIds'], [$workerId]);
+        if (!empty($workerId))
+            $global['workerIds'] = array_diff($global['workerIds'], [$workerId]);
 
         Context::setGlobal('WebSocket', $global);
 
