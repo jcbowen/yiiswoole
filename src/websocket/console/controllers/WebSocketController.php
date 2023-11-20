@@ -111,10 +111,9 @@ class WebSocketController extends Controller
      * @author Bowen
      * @email bowen@jiuchet.com
      *
-     * @return \Swoole\WebSocket\Server
      * @lasttime: 2023/11/14 4:04 PM
      */
-    public function actionStart(): \Swoole\WebSocket\Server
+    public function actionStart()
     {
         // 检查pid_file目录是否存在，如果不存在则创建
         if (!empty($this->server->serverConfig['pid_file'])) {
@@ -145,8 +144,9 @@ class WebSocketController extends Controller
                 chown(dirname($log_file), 'www');
             }
         }
-
-        return $this->server->run();
+        $this->server->run();
+        
+        return true;
     }
 
     /**
@@ -204,5 +204,7 @@ class WebSocketController extends Controller
 
         $this->stdout("Stopped successfully. Initiating restart..." . PHP_EOL);
         $this->actionStart();
+
+        return true;
     }
 }
