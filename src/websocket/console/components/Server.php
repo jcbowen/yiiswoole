@@ -276,7 +276,6 @@ class Server extends Component
         // 初始化上下文变量
         $_B['WebSocket']['on']     = 'open';
         $_B['WebSocket']['params'] = [
-            'route'   => $route,
             'version' => $version,
         ];
 
@@ -286,10 +285,7 @@ class Server extends Component
         // route不为空时，可以根据route自行处理握手成功信息
         if (!empty($route) && $route !== '/')
             try {
-                return Yii::$app->runAction($route, [
-                    'server'  => $server,
-                    'request' => $request
-                ]);
+                return Yii::$app->runAction($route, [$server, $request]);
             } catch (Exception $e) {
                 Yii::info($e);
                 $this->Controller->stdout($e->getMessage() . PHP_EOL, BaseConsole::FG_RED);
@@ -299,7 +295,6 @@ class Server extends Component
         return $server->push($request->fd, json_encode([
             'errcode' => ErrCode::SUCCESS,
             'errmsg'  => 'Handshake Success',
-            'route'   => $route
         ], JSON_UNESCAPED_UNICODE));
     }
 
@@ -320,15 +315,6 @@ class Server extends Component
         $_B   = ContactData::get($frame->fd, '_B');
         $_GPC = ContactData::get($frame->fd, '_GPC');
 
-        // 如果全局变量中的fd不存在，就意味着数据丢失了，需要客户端重新发起连接
-        if (empty($_B['WebSocket']['fd'])) {
-            $server->push($frame->fd, json_encode([
-                'errcode' => ErrCode::LOST_CONNECTION,
-                'errmsg'  => 'connect info lost',
-            ], JSON_UNESCAPED_UNICODE));
-            return $server->close($frame->fd);
-        }
-
         // 修改上下文中的信息
         $_B['WebSocket']['on'] = 'message';
 
@@ -343,23 +329,15 @@ class Server extends Component
             ], JSON_UNESCAPED_UNICODE));
 
         if (is_array($jsonData)) {
-            $route = $cacheRoute = $_B['WebSocket']['params']['route'];
-
-            $_GPC = ArrayHelper::merge((array)$_GPC, $jsonData);
-
-            $gpcRoute = trim($_GPC['route']);
-            $route    = $gpcRoute ?: $route;
+            $_GPC  = ArrayHelper::merge((array)$_GPC, $jsonData);
+            $route = trim($_GPC['route']) ?: '';
 
             // 如果route不存在，不知道应该由哪个路由进行处理，只能进行报错处理
             if (empty($route))
                 return $server->push($frame->fd, json_encode([
                     'errcode' => ErrCode::PARAMETER_ERROR,
                     'errmsg'  => 'Empty Route',
-                    'cr'      => $cacheRoute,
-                    'gr'      => $gpcRoute,
                 ], JSON_UNESCAPED_UNICODE));
-
-            $_B['WebSocket']['params']['route'] = $route;
 
             // 更新上下文中的信息
             ContactData::set($frame->fd, '_B', $_B);
@@ -367,10 +345,7 @@ class Server extends Component
 
             // 根据json数据中的路由转发到控制器内进行处理
             try {
-                return Yii::$app->runAction($route, [
-                    'server' => $server,
-                    'frame'  => $frame
-                ]);
+                return Yii::$app->runAction($route, [$server, $frame]);
             } catch (Exception $e) {
                 Yii::info($e);
                 $this->Controller->stdout($e->getMessage() . PHP_EOL, BaseConsole::FG_RED);
@@ -393,32 +368,13 @@ class Server extends Component
      *
      * @param $server
      * @param $fd
-     * @return false|int|mixed|Response
-     * @throws InvalidRouteException
+     * @return mixed
      * @lasttime: 2023/11/16 3:13 PM
      */
     public function onClose($server, $fd)
     {
-        $_B = ContactData::get($fd, '_B');
-
         $this->Controller->stdout("client-$fd is closed" . PHP_EOL);
 
-        $_B['WebSocket']['on'] = 'close';
-
-        ContactData::set($fd, '_B', $_B);
-
-        $route = $_B['WebSocket']['params']['route'];
-        if (!empty($route) && $route != '/') {
-            try {
-                return Yii::$app->runAction($route, [
-                    'server' => $server,
-                    'fd'     => $fd
-                ]);
-            } catch (Exception $e) {
-                Yii::info($e);
-                $this->Controller->stdout($e->getMessage() . PHP_EOL, BaseConsole::FG_RED);
-            }
-        }
         return false;
     }
 

@@ -16,7 +16,6 @@ use yii\base\InvalidArgumentException;
 use yii\base\InvalidRouteException;
 use yii\console\Controller;
 use yii\console\Exception;
-use yii\console\Response;
 use yii\helpers\ArrayHelper;
 use yii\helpers\BaseConsole;
 
@@ -277,7 +276,7 @@ class Server extends Component
 
         return $server->send($fd, json_encode([
             'errcode' => ErrCode::SUCCESS,
-            'errmsg'  => 'connect success',
+            'errmsg'  => 'Connect Success',
         ], JSON_UNESCAPED_UNICODE));
     }
 
@@ -300,15 +299,6 @@ class Server extends Component
         $_B   = ContactData::get($fd, '_B');
         $_GPC = ContactData::get($fd, '_GPC');
 
-        // 如果全局变量中的fd不存在，就意味着数据丢失了，需要客户端重新发起连接
-        if (empty($_B['TCP']['fd'])) {
-            $server->send($fd, json_encode([
-                'errcode' => ErrCode::LOST_CONNECTION,
-                'errmsg'  => 'connect info lost',
-            ], JSON_UNESCAPED_UNICODE));
-            return $server->close($fd);
-        }
-
         // 修改上下文中的信息
         $_B['TCP']['on'] = 'receive';
 
@@ -323,23 +313,15 @@ class Server extends Component
             ], JSON_UNESCAPED_UNICODE));
 
         if (is_array($jsonData)) {
-            $route = $cacheRoute = $_B['TCP']['params']['route'];
-
-            $_GPC = ArrayHelper::merge((array)$_GPC, $jsonData);
-
-            $gpcRoute = trim($_GPC['route']);
-            $route    = $gpcRoute ?: $route;
+            $_GPC  = ArrayHelper::merge((array)$_GPC, $jsonData);
+            $route = trim($_GPC['route']) ?: '';
 
             // 如果route不存在，不知道应该由哪个路由进行处理，只能进行报错处理
             if (empty($route))
                 return $server->send($fd, json_encode([
                     'errcode' => ErrCode::PARAMETER_ERROR,
                     'errmsg'  => 'Empty Route',
-                    'cr'      => $cacheRoute,
-                    'gr'      => $gpcRoute,
                 ], JSON_UNESCAPED_UNICODE));
-
-            $_B['TCP']['params']['route'] = $route;
 
             // 更新上下文中的信息
             ContactData::set($fd, '_B', $_B);
@@ -347,12 +329,7 @@ class Server extends Component
 
             // 根据json数据中的路由转发到控制器内进行处理
             try {
-                return Yii::$app->runAction($route, [
-                    'server'    => $server,
-                    'fd'        => $fd,
-                    'reactorId' => $reactorId,
-                    'data'      => $data,
-                ]);
+                return Yii::$app->runAction($route, [$server, $fd, $reactorId, $data]);
             } catch (Exception $e) {
                 Yii::info($e);
                 $this->Controller->stdout($e->getMessage() . PHP_EOL, BaseConsole::FG_RED);
@@ -375,32 +352,13 @@ class Server extends Component
      *
      * @param $server
      * @param $fd
-     * @return false|int|mixed|Response
-     * @throws InvalidRouteException
+     * @return mixed
      * @lasttime: 2023/11/16 3:13 PM
      */
     public function onClose($server, $fd)
     {
-        $_B = ContactData::get($fd, '_B');
-
         $this->Controller->stdout("client-$fd is closed" . PHP_EOL);
 
-        $_B['TCP']['on'] = 'close';
-
-        ContactData::set($fd, '_B', $_B);
-
-        $route = $_B['TCP']['params']['route'];
-        if (!empty($route) && $route != '/') {
-            try {
-                return Yii::$app->runAction($route, [
-                    'server' => $server,
-                    'fd'     => $fd
-                ]);
-            } catch (Exception $e) {
-                Yii::info($e);
-                $this->Controller->stdout($e->getMessage() . PHP_EOL, BaseConsole::FG_RED);
-            }
-        }
         return false;
     }
 

@@ -103,20 +103,11 @@ php yii websocket/restart
 ##### 携带的目录代表的是监听到动作后转发到哪个路由(由于通过console运行的进程，所以这里的路由指的是console里的路由)。
 
 ```php
-// 这里展示onMessage的源码，用来理解实现原理
+    // 这里展示onMessage的源码，用来理解实现原理
     public function onMessage(WsServer $server, $frame)
     {
         $_B   = ContactData::get($frame->fd, '_B');
         $_GPC = ContactData::get($frame->fd, '_GPC');
-
-        // 如果全局变量中的fd不存在，就意味着数据丢失了，需要客户端重新发起连接
-        if (empty($_B['WebSocket']['fd'])) {
-            $server->push($frame->fd, json_encode([
-                'errcode' => ErrCode::LOST_CONNECTION,
-                'errmsg'  => 'connect info lost',
-            ], JSON_UNESCAPED_UNICODE));
-            return $server->close($frame->fd);
-        }
 
         // 修改上下文中的信息
         $_B['WebSocket']['on'] = 'message';
@@ -132,23 +123,15 @@ php yii websocket/restart
             ], JSON_UNESCAPED_UNICODE));
 
         if (is_array($jsonData)) {
-            $route = $cacheRoute = $_B['WebSocket']['params']['route'];
-
-            $_GPC = ArrayHelper::merge((array)$_GPC, $jsonData);
-
-            $gpcRoute = trim($_GPC['route']);
-            $route    = $gpcRoute ?: $route;
+            $_GPC  = ArrayHelper::merge((array)$_GPC, $jsonData);
+            $route = trim($_GPC['route']) ?: '';
 
             // 如果route不存在，不知道应该由哪个路由进行处理，只能进行报错处理
             if (empty($route))
                 return $server->push($frame->fd, json_encode([
                     'errcode' => ErrCode::PARAMETER_ERROR,
                     'errmsg'  => 'Empty Route',
-                    'cr'      => $cacheRoute,
-                    'gr'      => $gpcRoute,
                 ], JSON_UNESCAPED_UNICODE));
-
-            $_B['WebSocket']['params']['route'] = $route;
 
             // 更新上下文中的信息
             ContactData::set($frame->fd, '_B', $_B);
@@ -156,10 +139,7 @@ php yii websocket/restart
 
             // 根据json数据中的路由转发到控制器内进行处理
             try {
-                return Yii::$app->runAction($route, [
-                    'server' => $server,
-                    'frame'  => $frame
-                ]);
+                return Yii::$app->runAction($route, [$server, $frame]);
             } catch (Exception $e) {
                 Yii::info($e);
                 $this->Controller->stdout($e->getMessage() . PHP_EOL, BaseConsole::FG_RED);
@@ -173,7 +153,6 @@ php yii websocket/restart
             ], JSON_UNESCAPED_UNICODE));
         }
     }
-
 ```
 
 ##### 总结：jcbowen/yiiswoole插件会在websocket触发onmessage时，根据route调用对应的控制器方法，并将websocket服务和接收到数据分别存放到```_B```与```_GPC```中；
@@ -189,7 +168,7 @@ class SiteController extends Controller
         $_GPC = ContactData::get($frame->fd, '_GPC');
         
         // 可以根据$_B['WebSocket']['on']判断是通过什么方式转发过来的
-        // $_B['WebSocket']['on']的值有start/stop/open/message/close
+        // $_B['WebSocket']['on']的值有start/stop/open/message
         
         $tables = $_B['WebSocket']['tables'];
         /** @var \Swoole\Table $table */
