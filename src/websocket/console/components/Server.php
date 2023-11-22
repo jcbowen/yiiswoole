@@ -274,12 +274,8 @@ class Server extends Component
         $_B = (array)ContactData::get($request->fd, '_B');
 
         // 初始化上下文变量
-        $_B['WebSocket']['fd']      = $request->fd;
-        $_B['WebSocket']['server']  = $server;
-        $_B['WebSocket']['request'] = $request;
-        $_B['WebSocket']['frame']   = [];
-        $_B['WebSocket']['on']      = 'open';
-        $_B['WebSocket']['params']  = [
+        $_B['WebSocket']['on']     = 'open';
+        $_B['WebSocket']['params'] = [
             'route'   => $route,
             'version' => $version,
         ];
@@ -290,7 +286,10 @@ class Server extends Component
         // route不为空时，可以根据route自行处理握手成功信息
         if (!empty($route) && $route !== '/')
             try {
-                return Yii::$app->runAction($route);
+                return Yii::$app->runAction($route, [
+                    'server'  => $server,
+                    'request' => $request
+                ]);
             } catch (Exception $e) {
                 Yii::info($e);
                 $this->Controller->stdout($e->getMessage() . PHP_EOL, BaseConsole::FG_RED);
@@ -331,9 +330,7 @@ class Server extends Component
         }
 
         // 修改上下文中的信息
-        $_B['WebSocket']['on']     = 'message';
-        $_B['WebSocket']['server'] = $server;
-        $_B['WebSocket']['frame']  = $frame;
+        $_B['WebSocket']['on'] = 'message';
 
         $jsonData = Util::isJson($frame->data) ? (array)@json_decode($frame->data, true) : $frame->data;
         $jsonData = $jsonData ?: $frame->data; // 避免因json解析失败导致数据丢失的情况
@@ -370,7 +367,10 @@ class Server extends Component
 
             // 根据json数据中的路由转发到控制器内进行处理
             try {
-                return Yii::$app->runAction($route);
+                return Yii::$app->runAction($route, [
+                    'server' => $server,
+                    'frame'  => $frame
+                ]);
             } catch (Exception $e) {
                 Yii::info($e);
                 $this->Controller->stdout($e->getMessage() . PHP_EOL, BaseConsole::FG_RED);
@@ -403,16 +403,17 @@ class Server extends Component
 
         $this->Controller->stdout("client-$fd is closed" . PHP_EOL);
 
-        $_B['WebSocket']['server'] = $server;
-        $_B['WebSocket']['frame']  = [];
-        $_B['WebSocket']['on']     = 'close';
+        $_B['WebSocket']['on'] = 'close';
 
         ContactData::set($fd, '_B', $_B);
 
         $route = $_B['WebSocket']['params']['route'];
         if (!empty($route) && $route != '/') {
             try {
-                return Yii::$app->runAction($route);
+                return Yii::$app->runAction($route, [
+                    'server' => $server,
+                    'fd'     => $fd
+                ]);
             } catch (Exception $e) {
                 Yii::info($e);
                 $this->Controller->stdout($e->getMessage() . PHP_EOL, BaseConsole::FG_RED);

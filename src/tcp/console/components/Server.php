@@ -310,9 +310,7 @@ class Server extends Component
         }
 
         // 修改上下文中的信息
-        $_B['TCP']['on']        = 'receive';
-        $_B['TCP']['server']    = $server;
-        $_B['TCP']['reactorId'] = $reactorId;
+        $_B['TCP']['on'] = 'receive';
 
         $jsonData = Util::isJson($data) ? (array)@json_decode($data, true) : $data;
         $jsonData = $jsonData ?: $data; // 避免因json解析失败导致数据丢失的情况
@@ -349,7 +347,12 @@ class Server extends Component
 
             // 根据json数据中的路由转发到控制器内进行处理
             try {
-                return Yii::$app->runAction($route);
+                return Yii::$app->runAction($route, [
+                    'server'    => $server,
+                    'fd'        => $fd,
+                    'reactorId' => $reactorId,
+                    'data'      => $data,
+                ]);
             } catch (Exception $e) {
                 Yii::info($e);
                 $this->Controller->stdout($e->getMessage() . PHP_EOL, BaseConsole::FG_RED);
@@ -382,15 +385,17 @@ class Server extends Component
 
         $this->Controller->stdout("client-$fd is closed" . PHP_EOL);
 
-        $_B['TCP']['server'] = $server;
-        $_B['TCP']['on']     = 'close';
+        $_B['TCP']['on'] = 'close';
 
         ContactData::set($fd, '_B', $_B);
 
         $route = $_B['TCP']['params']['route'];
         if (!empty($route) && $route != '/') {
             try {
-                return Yii::$app->runAction($route);
+                return Yii::$app->runAction($route, [
+                    'server' => $server,
+                    'fd'     => $fd
+                ]);
             } catch (Exception $e) {
                 Yii::info($e);
                 $this->Controller->stdout($e->getMessage() . PHP_EOL, BaseConsole::FG_RED);

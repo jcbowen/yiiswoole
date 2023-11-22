@@ -92,9 +92,9 @@ php yii websocket/restart
 }
 ```
 
-##### 通过执行```\Jcbowen\yiiswoole\components\Context::get('_B');```方法，可以读取上下文中缓存的信息；
+##### 通过执行```\Jcbowen\yiiswoole\components\ContactData::get($fd, '_B');```方法，可以读取上下文中缓存的信息；
 
-##### 通过执行```\Jcbowen\yiiswoole\components\Context::get('_GPC');```方法，可以读取上下文中缓存的get数据；
+##### 通过执行```\Jcbowen\yiiswoole\components\ContactData::get($fd,'_GPC');```方法，可以读取上下文中缓存的get数据；
 
 ##### 其中server和frame会被缓存到```_B```中；
 
@@ -106,8 +106,8 @@ php yii websocket/restart
 // 这里展示onMessage的源码，用来理解实现原理
     public function onMessage(WsServer $server, $frame)
     {
-        $_B   = Context::get('_B');
-        $_GPC = Context::get('_GPC');
+        $_B   = ContactData::get($frame->fd, '_B');
+        $_GPC = ContactData::get($frame->fd, '_GPC');
 
         // 如果全局变量中的fd不存在，就意味着数据丢失了，需要客户端重新发起连接
         if (empty($_B['WebSocket']['fd'])) {
@@ -119,12 +119,10 @@ php yii websocket/restart
         }
 
         // 修改上下文中的信息
-        $_B['WebSocket']['on']     = 'message';
-        $_B['WebSocket']['server'] = $server;
-        $_B['WebSocket']['frame']  = $frame;
+        $_B['WebSocket']['on'] = 'message';
 
         $jsonData = Util::isJson($frame->data) ? (array)@json_decode($frame->data, true) : $frame->data;
-        $jsonData = $jsonData ?: $frame->data; // 避免json解析失败会导致数据丢失的情况
+        $jsonData = $jsonData ?: $frame->data; // 避免因json解析失败导致数据丢失的情况
 
         // 空数据为触发心跳
         if (empty($jsonData))
@@ -141,7 +139,7 @@ php yii websocket/restart
             $gpcRoute = trim($_GPC['route']);
             $route    = $gpcRoute ?: $route;
 
-            // 如果不携带route，就不知道应该由哪个路由进行处理
+            // 如果route不存在，不知道应该由哪个路由进行处理，只能进行报错处理
             if (empty($route))
                 return $server->push($frame->fd, json_encode([
                     'errcode' => ErrCode::PARAMETER_ERROR,
@@ -153,12 +151,15 @@ php yii websocket/restart
             $_B['WebSocket']['params']['route'] = $route;
 
             // 更新上下文中的信息
-            Context::set('_B', $_B);
-            Context::set('_GPC', $_GPC);
+            ContactData::set($frame->fd, '_B', $_B);
+            ContactData::set($frame->fd, '_GPC', $_GPC);
 
             // 根据json数据中的路由转发到控制器内进行处理
             try {
-                return Yii::$app->runAction($route);
+                return Yii::$app->runAction($route, [
+                    'server' => $server,
+                    'frame'  => $frame
+                ]);
             } catch (Exception $e) {
                 Yii::info($e);
                 $this->Controller->stdout($e->getMessage() . PHP_EOL, BaseConsole::FG_RED);
@@ -182,24 +183,19 @@ php yii websocket/restart
 ```php
 class SiteController extends Controller
 {    
-    public function actionTest()
+    public function actionTest(WsServer $server, $frame)
     {
-        $_B = Context::get('_B');
-        $_GPC = Context::get('_GPC');
+        $_B = ContactData::get($frame->fd, '_B');
+        $_GPC = ContactData::get($frame->fd, '_GPC');
         
         // 可以根据$_B['WebSocket']['on']判断是通过什么方式转发过来的
         // $_B['WebSocket']['on']的值有start/stop/open/message/close
-
-        /** @var \swoole\websocket\server $ws */
-        $ws = $_B['WebSocket']['server'];
-        $frame = $_B['WebSocket']['frame'];
         
         $tables = $_B['WebSocket']['tables'];
         /** @var \Swoole\Table $table */
         $table = $tables['test_table'];
         
-        return $ws->push($frame->fd, $_GPC['message']);
+        return $server->push($frame->fd, $_GPC['message']);
     }
-    
 }
 ```
