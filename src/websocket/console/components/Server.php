@@ -230,12 +230,12 @@ class Server extends Component
      * @author Bowen
      * @email bowen@jiuchet.com
      *
-     * @param WsServer $server
+     * @param WsServer|null $server
      * @param int|null $workerId
      * @return bool
      * @lasttime: 2023/11/16 2:52 PM
      */
-    public function onWorkerStop(WsServer $server, ?int $workerId): bool
+    public function onWorkerStop(?WsServer $server, ?int $workerId): bool
     {
         $global = Context::getGlobal('WebSocket');
 
