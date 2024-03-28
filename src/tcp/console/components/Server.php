@@ -209,7 +209,7 @@ class Server extends Component
      */
     public function onWorkerStart(SwServer $server, ?int $workerId = null)
     {
-        $this->Controller->stdout("Start Tcp Worker, Ports:" . json_encode($this->ports) . PHP_EOL, BaseConsole::FG_GREEN);
+        $this->Controller->stdout("Start Tcp Worker[$workerId], Ports:" . json_encode($this->ports) . PHP_EOL, BaseConsole::FG_GREEN);
 
         $global                = Context::getGlobal('TCP');
         $global['server']      = $server;

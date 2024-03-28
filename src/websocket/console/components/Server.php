@@ -210,7 +210,7 @@ class Server extends Component
      */
     public function onWorkerStart(WsServer $server, ?int $workerId = null)
     {
-        $this->Controller->stdout("Start Websocket Worker, Ports:" . json_encode($this->ports) . PHP_EOL, BaseConsole::FG_GREEN);
+        $this->Controller->stdout("Start Websocket Worker[$workerId], Ports:" . json_encode($this->ports) . PHP_EOL, BaseConsole::FG_GREEN);
 
         $global                = Context::getGlobal('WebSocket');
         $global['server']      = $server;
