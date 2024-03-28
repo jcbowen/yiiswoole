@@ -206,11 +206,11 @@ class Server extends Component
      * @author Bowen
      * @email bowen@jiuchet.com
      *
-     * @param WsServer $server
+     * @param WsServer|null $server
      * @param int|null $workerId
      * @lasttime: 2023/11/16 2:49 PM
      */
-    public function onWorkerStart(WsServer $server, ?int $workerId = null)
+    public function onWorkerStart(?WsServer $server, ?int $workerId = null)
     {
         $this->Controller->stdout("Start Websocket Worker[$workerId], Ports:" . json_encode($this->ports) . PHP_EOL, BaseConsole::FG_GREEN);
 
@@ -336,11 +336,7 @@ class Server extends Component
 
             // 根据json数据中的路由转发到控制器内进行处理
             try {
-                return Yii::$app->runAction($route, [
-                    'server' => $server,
-                    'frame'  => $frame,
-                    'fd'     => $frame->fd
-                ]);
+                return Yii::$app->runAction($route, [$server, $frame, $frame->fd]);
             } catch (Exception $e) {
                 Yii::info($e);
                 $this->Controller->stdout($e->getMessage() . PHP_EOL, BaseConsole::FG_RED);
