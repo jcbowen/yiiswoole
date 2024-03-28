@@ -263,13 +263,12 @@ class Server extends Component
      */
     public function onOpen($server, $request)
     {
-        $this->Controller->stdout("Handshake Success (fd: $request->fd)" . PHP_EOL . PHP_EOL, BaseConsole::FG_GREEN);
+        $this->Controller->stdout("Open Success (fd: $request->fd)" . PHP_EOL . PHP_EOL, BaseConsole::FG_GREEN);
 
         $_GPC      = (array)$request->get;
         $_GPC['a'] = (string)$_GPC['a'];
 
         $version = trim($_GPC['v']) ?: '1.0.0';
-        $route   = $request->server['path_info'] ?: '';
 
         $_B = (array)ContactData::get($request->fd, '_B');
 
@@ -281,16 +280,6 @@ class Server extends Component
 
         ContactData::set($request->fd, '_B', $_B);
         ContactData::set($request->fd, '_GPC', $_GPC);
-
-        // route不为空时，可以根据route自行处理握手成功信息
-        if (!empty($route) && $route !== '/')
-            try {
-                return Yii::$app->runAction($route, [$server, $request]);
-            } catch (Exception $e) {
-                Yii::error($e);
-                $this->Controller->stdout($e->getMessage() . PHP_EOL, BaseConsole::FG_RED);
-                return false;
-            }
 
         return $server->push($request->fd, json_encode([
             'errcode' => ErrCode::SUCCESS,
@@ -345,7 +334,11 @@ class Server extends Component
 
             // 根据json数据中的路由转发到控制器内进行处理
             try {
-                return Yii::$app->runAction($route, [$server, $frame]);
+                return Yii::$app->runAction($route, [
+                    'server' => $server,
+                    'frame'  => $frame,
+                    'fd'     => $frame->fd
+                ]);
             } catch (Exception $e) {
                 Yii::info($e);
                 $this->Controller->stdout($e->getMessage() . PHP_EOL, BaseConsole::FG_RED);

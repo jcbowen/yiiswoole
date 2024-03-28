@@ -329,7 +329,12 @@ class Server extends Component
 
             // 根据json数据中的路由转发到控制器内进行处理
             try {
-                return Yii::$app->runAction($route, [$server, $fd, $reactorId, $data]);
+                return Yii::$app->runAction($route, [
+                    'server'    => $server,
+                    'fd'        => $fd,
+                    'reactorId' => $reactorId,
+                    'data'      => $data
+                ]);
             } catch (Exception $e) {
                 Yii::error($e);
                 $this->Controller->stdout($e->getMessage() . PHP_EOL, BaseConsole::FG_RED);
