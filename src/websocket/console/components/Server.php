@@ -287,7 +287,7 @@ class Server extends Component
             try {
                 return Yii::$app->runAction($route, [$server, $request]);
             } catch (Exception $e) {
-                Yii::info($e);
+                Yii::error($e);
                 $this->Controller->stdout($e->getMessage() . PHP_EOL, BaseConsole::FG_RED);
                 return false;
             }

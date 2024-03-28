@@ -209,7 +209,7 @@ class Server extends Component
      */
     public function onWorkerStart(SwServer $server, ?int $workerId = null)
     {
-        $this->Controller->stdout("Start Websocket Worker, Ports:" . json_encode($this->ports) . PHP_EOL, BaseConsole::FG_GREEN);
+        $this->Controller->stdout("Start Tcp Worker, Ports:" . json_encode($this->ports) . PHP_EOL, BaseConsole::FG_GREEN);
 
         $global                = Context::getGlobal('TCP');
         $global['server']      = $server;
@@ -331,7 +331,7 @@ class Server extends Component
             try {
                 return Yii::$app->runAction($route, [$server, $fd, $reactorId, $data]);
             } catch (Exception $e) {
-                Yii::info($e);
+                Yii::error($e);
                 $this->Controller->stdout($e->getMessage() . PHP_EOL, BaseConsole::FG_RED);
                 return false;
             }
