@@ -6,9 +6,11 @@ use Jcbowen\JcbaseYii2\components\ErrCode;
 use Jcbowen\yiiswoole\components\ContactData;
 use Jcbowen\yiiswoole\components\Context;
 use Jcbowen\yiiswoole\components\Util;
+use Swoole\Http\Request;
 use Swoole\Process;
 use Swoole\Server\Port;
 use Swoole\Table;
+use Swoole\WebSocket\Frame;
 use Swoole\WebSocket\Server as WsServer;
 use Yii;
 use yii\base\Component;
@@ -228,12 +230,12 @@ class Server extends Component
      * @author Bowen
      * @email bowen@jiuchet.com
      *
-     * @param $server
+     * @param WsServer $server
      * @param int|null $workerId
      * @return bool
      * @lasttime: 2023/11/16 2:52 PM
      */
-    public function onWorkerStop($server, ?int $workerId): bool
+    public function onWorkerStop(WsServer $server, ?int $workerId): bool
     {
         $global = Context::getGlobal('WebSocket');
 
@@ -255,13 +257,12 @@ class Server extends Component
      * @author Bowen
      * @email bowen@jiuchet.com
      *
-     * @param $server
-     * @param $request
-     * @return false|int|mixed|Response
-     * @throws InvalidRouteException
+     * @param WsServer $server
+     * @param Request $request
+     * @return bool
      * @lasttime: 2023/11/16 2:53 PM
      */
-    public function onOpen($server, $request)
+    public function onOpen(WsServer $server, Request $request): bool
     {
         $this->Controller->stdout("Open Success (fd: $request->fd)" . PHP_EOL . PHP_EOL, BaseConsole::FG_GREEN);
 
@@ -276,6 +277,7 @@ class Server extends Component
         $_B['WebSocket']['on']     = 'open';
         $_B['WebSocket']['params'] = [
             'version' => $version,
+            'request' => $request,
         ];
 
         ContactData::set($request->fd, '_B', $_B);
@@ -294,12 +296,12 @@ class Server extends Component
      * @email bowen@jiuchet.com
      *
      * @param WsServer $server
-     * @param $frame
+     * @param Frame $frame
      * @return bool|int|mixed|Response
      * @throws InvalidRouteException
      * @lasttime: 2023/11/16 2:59 PM
      */
-    public function onMessage(WsServer $server, $frame)
+    public function onMessage(WsServer $server, Frame $frame)
     {
         $_B   = ContactData::get($frame->fd, '_B');
         $_GPC = ContactData::get($frame->fd, '_GPC');
@@ -359,12 +361,12 @@ class Server extends Component
      * @author Bowen
      * @email bowen@jiuchet.com
      *
-     * @param $server
-     * @param $fd
+     * @param WsServer $server
+     * @param int $fd
      * @return mixed
      * @lasttime: 2023/11/16 3:13 PM
      */
-    public function onClose($server, $fd)
+    public function onClose(WsServer $server, int $fd)
     {
         $this->Controller->stdout("client-$fd is closed" . PHP_EOL);
 
