@@ -80,7 +80,7 @@ class Server extends Component
         if (empty($this->serverConfig))
             throw new InvalidArgumentException('Configuration is empty. Please check the configuration file.');
 
-        $this->pidFile = $this->serverConfig['pid_file'] ?: '@runtime/yiiswoole/websocket.pid';
+        $this->pidFile = $this->serverConfig['pid_file'] ?? '@runtime/yiiswoole/websocket.pid';
     }
 
     /**
@@ -98,8 +98,8 @@ class Server extends Component
         if (!empty($this->tablesConfig)) {
             foreach ($this->tablesConfig as $ind => $tableConfig) {
                 if (empty($tableConfig['column']) || !is_array($tableConfig['column'])) continue;
-                $tableSize           = $tableConfig['size'] ?: 1024;
-                $conflict_proportion = $tableConfig['conflict_proportion'] ?: 0.2;
+                $tableSize           = $tableConfig['size'] ?? 1024;
+                $conflict_proportion = $tableConfig['conflict_proportion'] ?? 0.2;
                 $this->_tables[$ind] = new Table($tableSize, $conflict_proportion);
 
                 foreach ($tableConfig['column'] as $column)
