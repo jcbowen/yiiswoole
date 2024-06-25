@@ -104,7 +104,7 @@ php yii websocket/restart
 
 ```php
     // 这里展示onMessage的源码，用来理解实现原理
-    public function onMessage(WsServer $server, $frame)
+    public function onMessage(WsServer $server, Frame $frame)
     {
         $_B   = ContactData::get($frame->fd, '_B');
         $_GPC = ContactData::get($frame->fd, '_GPC');
@@ -139,7 +139,7 @@ php yii websocket/restart
 
             // 根据json数据中的路由转发到控制器内进行处理
             try {
-                return Yii::$app->runAction($route, [$server, $frame]);
+                return Yii::$app->runAction($route, [$server, $frame, $frame->fd, $this]);
             } catch (Exception $e) {
                 Yii::info($e);
                 $this->Controller->stdout($e->getMessage() . PHP_EOL, BaseConsole::FG_RED);
@@ -162,19 +162,19 @@ php yii websocket/restart
 ```php
 class SiteController extends Controller
 {    
-    public function actionTest(WsServer $server, $frame)
+    use Jcbowen\yiiswoole\websocket\console\components\Server;
+    use Swoole\WebSocket\Frame;
+    use Swoole\WebSocket\server as WsServer;
+
+    public function actionTest(WsServer $WsServer, Frame $frame,Server $server)
     {
         $_B = ContactData::get($frame->fd, '_B');
         $_GPC = ContactData::get($frame->fd, '_GPC');
         
-        // 可以根据$_B['WebSocket']['on']判断是通过什么方式转发过来的
-        // $_B['WebSocket']['on']的值有start/stop/open/message
-        
-        $tables = $_B['WebSocket']['tables'];
         /** @var \Swoole\Table $table */
-        $table = $tables['test_table'];
+        $table = $server->_tables['test_table'];
         
-        return $server->push($frame->fd, $_GPC['message']);
+        return $WsServer->push($frame->fd, $_GPC['message']);
     }
 }
 ```
