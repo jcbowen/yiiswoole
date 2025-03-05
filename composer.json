@@ -23,7 +23,7 @@
     "yiisoft/yii2": "^2.0",
     "ext-posix": "*",
     "ext-json": "*",
-    "jcbowen/jcbase-yii2": "^0.x-dev || >=0.3.4"
+    "jcbowen/jcbase-yii2": "^0.x-dev || >=0.30.0"
   },
   "autoload": {
     "psr-4": {

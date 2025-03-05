@@ -16,7 +16,6 @@ use yii\base\InvalidArgumentException;
 use yii\base\InvalidRouteException;
 use yii\console\Controller;
 use yii\console\Exception;
-use yii\helpers\ArrayHelper;
 use yii\helpers\BaseConsole;
 
 /**
@@ -116,7 +115,7 @@ class Server extends Component
                 $this->_ms = new SwServer($port['host'], $port['port'], $port['mode'], $port['socketType']);
 
                 // 将全局配置信息与第一个端口配置信息合并，并生效
-                $portConfig = ArrayHelper::merge($this->serverConfig, $port);
+                $portConfig = Util::ArrayMerge($this->serverConfig, $port);
 
                 // 将配置中的地址为swoole能理解的绝对地址
                 Util::translateArrayFilePath($portConfig);
@@ -313,7 +312,7 @@ class Server extends Component
             ], JSON_UNESCAPED_UNICODE));
 
         if (is_array($jsonData)) {
-            $_GPC  = ArrayHelper::merge((array)$_GPC, $jsonData);
+            $_GPC  = Util::ArrayMerge((array)$_GPC, $jsonData);
             $route = trim($_GPC['route']) ?: '';
 
             // 如果route不存在，不知道应该由哪个路由进行处理，只能进行报错处理

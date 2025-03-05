@@ -10,11 +10,11 @@
 
 namespace Jcbowen\yiiswoole\websocket\console\controllers;
 
+use Jcbowen\yiiswoole\components\Util;
 use Jcbowen\yiiswoole\websocket\console\components\Server;
 use Yii;
 use yii\base\Exception;
 use yii\console\Controller;
-use yii\helpers\ArrayHelper;
 use yii\helpers\FileHelper;
 
 class WebSocketController extends Controller
@@ -86,7 +86,7 @@ class WebSocketController extends Controller
      */
     private function initPorts(array $port = []): array
     {
-        $port = ArrayHelper::merge([
+        $port = Util::ArrayMerge([
             'host'       => '0.0.0.0',
             'port'       => 9408,
             // 运行的模式 SWOOLE_PROCESS 多进程模式（默认）SWOOLE_BASE 基本模式
@@ -102,7 +102,7 @@ class WebSocketController extends Controller
         if ($port['cert'] === 'ssl')
             $port['socketType'] = SWOOLE_SOCK_TCP | SWOOLE_SSL;
 
-        return ArrayHelper::merge($this->_config, $port);
+        return Util::ArrayMerge($this->_config, $port);
     }
 
     /**
